@@ -1,108 +1,108 @@
 # ETH Sweeper
 
-Ethereum 鏈上地址掃描與視覺化工具。
+On-chain Ethereum address scanner and visualization tool.
 
-掃描任意 ETH 錢包地址，列出所有交易紀錄（ETH / Internal / ERC-20 / ERC-721），並以互動式圖形展示上下游地址關係。
+Scan any ETH wallet address, list all transactions (ETH / Internal / ERC-20 / ERC-721), and visualize upstream/downstream address relationships with an interactive graph.
 
-## 功能
+## Features
 
-- **關係圖** — Cytoscape.js 互動式圖，節點顏色/形狀區分 EOA、合約、交易所、跨鏈橋
-- **交易面板** — 右側滑出面板，可篩選類型和對手地址
-- **餘額卡片** — 顯示 ETH 餘額和代幣持倉
-- **時間軸** — 按日期統計轉入/轉出交易數量
-- **資金流向** — Sankey 圖顯示 ETH 流向
-- **右鍵選單** — 標記、命名節點，查看相關交易
-- **搜尋紀錄** — 自動記錄最近掃描的地址
-- **URL 歷史** — 支援瀏覽器上一頁/下一頁
+- **Relationship Graph** — Interactive Cytoscape.js graph with node shapes/colors distinguishing EOA, contracts, exchanges, and cross-chain bridges
+- **Transaction Panel** — Slide-out side panel with category and counterparty filtering
+- **Balance Card** — Displays ETH balance and token holdings
+- **Timeline** — Bar chart showing daily in/out transaction counts
+- **Fund Flow** — Sankey diagram visualizing ETH flow direction
+- **Context Menu** — Right-click to mark, rename nodes, or view related transactions
+- **Search History** — Automatically records recently scanned addresses
+- **URL History** — Browser back/forward navigation support
 
-## 技術棧
+## Tech Stack
 
-| | 技術 |
+| | Technology |
 |--|------|
-| 後端 | Go, Gin, Etherscan API V2 |
-| 前端 | React, TypeScript, Vite, Tailwind CSS |
-| 圖表 | Cytoscape.js, Recharts, D3-Sankey |
-| 部署 | Docker, docker-compose |
+| Backend | Go, Gin, Etherscan API V2 |
+| Frontend | React, TypeScript, Vite, Tailwind CSS |
+| Charts | Cytoscape.js, Recharts, D3-Sankey |
+| Deployment | Docker, docker-compose |
 
-## 快速開始
+## Quick Start
 
-### 本地開發
+### Local Development
 
 ```bash
-# 1. 設定 API Key
+# 1. Set up API Key
 cp backend/.env.sample backend/.env
-# 編輯 backend/.env，填入 Etherscan API Key
+# Edit backend/.env and fill in your Etherscan API Key
 
-# 2. 啟動後端
+# 2. Start backend
 cd backend
 go run main.go
 
-# 3. 啟動前端（另開終端）
+# 3. Start frontend (open another terminal)
 cd frontend
 npm install
 npm run dev
 
-# 4. 開啟 http://localhost:5173
+# 4. Open http://localhost:5173
 ```
 
 ### Docker
 
 ```bash
-# 1. 設定 API Key
+# 1. Set up API Key
 cp backend/.env.sample backend/.env
-# 編輯 backend/.env
+# Edit backend/.env
 
-# 2. 一鍵啟動
+# 2. Launch
 docker compose up --build
 
-# 3. 開啟 http://localhost:3000
+# 3. Open http://localhost:3000
 ```
 
 ## Linter & Formatter
 
-### 前端（ESLint + Prettier）
+### Frontend (ESLint + Prettier)
 
 ```bash
 cd frontend
 
-# 檢查 lint 錯誤
+# Check for lint errors
 npm run lint
 
-# 自動修復 lint 錯誤
+# Auto-fix lint errors
 npm run lint:fix
 
-# 檢查格式
+# Check formatting
 npm run format:check
 
-# 自動格式化
+# Auto-format
 npm run format
 ```
 
-### 後端（go vet + gofmt）
+### Backend (go vet + gofmt)
 
 ```bash
 cd backend
 
-# 靜態分析（檢查常見錯誤）
+# Static analysis (check for common errors)
 go vet ./...
 
-# 檢查格式（列出未格式化的檔案）
+# Check formatting (list unformatted files)
 gofmt -l .
 
-# 自動格式化
+# Auto-format
 gofmt -w .
 ```
 
-## 文件
+## Documentation
 
-- [DOCS.md](DOCS.md) — 完整技術文件（架構、API 規格、模組說明）
-- [Todo.md](Todo.md) — 實作進度與待辦功能
+- [DOCS.md](DOCS.md) — Full technical documentation (architecture, API spec, module details)
+- [Todo.md](Todo.md) — Implementation progress and upcoming features
 
-## 取得 API Key
+## Getting an API Key
 
-1. 前往 https://etherscan.io/register 註冊
-2. 登入後到 https://etherscan.io/myapikey
-3. 點 Add 建立 API Key
-4. 貼到 `backend/.env`
+1. Register at https://etherscan.io/register
+2. After login, go to https://etherscan.io/myapikey
+3. Click "Add" to create a new API Key
+4. Paste it into `backend/.env`
 
-免費版：100,000 calls/day，3 calls/sec。
+Free tier: 100,000 calls/day, 3 calls/sec.
