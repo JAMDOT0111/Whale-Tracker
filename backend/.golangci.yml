@@ -1,0 +1,19 @@
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - bodyclose
+
+linters-settings:
+  goimports:
+    local-prefixes: eth-sweeper
+
+run:
+  timeout: 5m

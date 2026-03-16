@@ -1,0 +1,18 @@
+# Environment variables
+.env
+
+# Go
+backend/eth-sweeper
+backend/eth-sweeper.exe
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
