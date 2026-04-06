@@ -235,7 +235,9 @@ func (s *AlertService) StartScheduler(ctx context.Context) {
 		return
 	}
 	go func() {
-		ticker := time.NewTicker(30 * time.Minute)
+		interval := configuredWatchlistScanInterval()
+		log.Printf("[jobs] watchlist scanner enabled; interval=%s", interval)
+		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
 			select {
@@ -247,6 +249,19 @@ func (s *AlertService) StartScheduler(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+func configuredWatchlistScanInterval() time.Duration {
+	raw := strings.TrimSpace(os.Getenv("WATCHLIST_SCAN_INTERVAL"))
+	if raw == "" {
+		return time.Minute
+	}
+	interval, err := time.ParseDuration(raw)
+	if err != nil || interval < time.Minute {
+		log.Printf("[jobs] invalid WATCHLIST_SCAN_INTERVAL=%q; using 1m", raw)
+		return time.Minute
+	}
+	return interval
 }
 
 func labelOrAddress(item model.WatchlistItem) string {
