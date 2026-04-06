@@ -1,24 +1,22 @@
-# ETH Sweeper
+# Whale-Tracker
 
-On-chain Ethereum address scanner and visualization tool.
+ETH whale and smart-money tracking prototype for public on-chain analysis and Gmail notifications.
 
-Scan any ETH wallet address, list all transactions (ETH / Internal / ERC-20 / ERC-721), and visualize upstream/downstream address relationships with an interactive graph.
+掃描巨鯨地址、分析鏈上互動、追蹤地址異動並寄送 Gmail 通知。本專案只讀取公開鏈上資料，不處理私鑰、不簽交易、不自動轉帳。
 
 ## Features
 
-- **Relationship Graph** — Interactive Cytoscape.js graph with node shapes/colors distinguishing EOA, contracts, exchanges, and cross-chain bridges
-- **Transaction Panel** — Slide-out side panel with category and counterparty filtering
-- **Balance Card** — Displays ETH balance and token holdings
-- **Timeline** — Bar chart showing daily in/out transaction counts
-- **Fund Flow** — Sankey diagram visualizing ETH flow direction
-- **Context Menu** — Right-click to mark, rename nodes, or view related transactions
-- **Search History** — Automatically records recently scanned addresses
-- **URL History** — Browser back/forward navigation support
+- Whale list from Etherscan Top Accounts live data
+- Watchlist tracking with configurable ETH notification threshold
+- Gmail OAuth / SMTP notification delivery
+- Address balance, transaction, relationship graph, timeline, and flow visualization
+- ETH price chart, public news feed, labels, risk and heuristic alert evidence
+- One-user-experience design: no paid membership tiers and no Stripe integration
 
 ## Tech Stack
 
-| | Technology |
-|--|------|
+| Area | Technology |
+| --- | --- |
 | Backend | Go, Gin, Etherscan API V2 |
 | Frontend | React, TypeScript, Vite, Tailwind CSS |
 | Charts | Cytoscape.js, Recharts, D3-Sankey |
@@ -26,84 +24,57 @@ Scan any ETH wallet address, list all transactions (ETH / Internal / ERC-20 / ER
 
 ## Quick Start
 
-### Local Development
-
 ```bash
-# 1. Set up API Key
+# 1. Configure environment
 cp backend/.env.sample backend/.env
-# Edit backend/.env and fill in your Etherscan API Key
+# Edit backend/.env and fill in local API/OAuth credentials
 
 # 2. Start backend
 cd backend
 go run main.go
 
-# 3. Start frontend (open another terminal)
+# 3. Start frontend in another terminal
 cd frontend
 npm install
 npm run dev
 
-# 4. Open http://localhost:5173
+# 4. Open the app
+# http://localhost:5173
 ```
 
-### Docker
+## Useful Environment Variables
 
-```bash
-# 1. Set up API Key
-cp backend/.env.sample backend/.env
-# Edit backend/.env
-
-# 2. Launch
-docker compose up --build
-
-# 3. Open http://localhost:3000
+```env
+ETHERSCAN_API_KEY=
+ETHERSCAN_TOP_ACCOUNTS_PAGES=20
+AUTO_IMPORT_WHALES_ON_START=true
+ENABLE_DEMO_DATA=false
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_OAUTH_REDIRECT_URL=http://127.0.0.1:8080/api/auth/google/callback
+FRONTEND_URL=http://127.0.0.1:5173
+ENABLE_JOBS=false
+WATCHLIST_SCAN_INTERVAL=1m
 ```
 
-## Linter & Formatter
+Do not commit real API keys, OAuth client secrets, Gmail app passwords, or production database credentials.
 
-### Frontend (ESLint + Prettier)
+## Linter And Formatter
 
 ```bash
 cd frontend
-
-# Check for lint errors
 npm run lint
-
-# Auto-fix lint errors
-npm run lint:fix
-
-# Check formatting
 npm run format:check
-
-# Auto-format
-npm run format
 ```
-
-### Backend (go vet + gofmt)
 
 ```bash
 cd backend
-
-# Static analysis (check for common errors)
 go vet ./...
-
-# Check formatting (list unformatted files)
 gofmt -l .
-
-# Auto-format
-gofmt -w .
 ```
 
 ## Documentation
 
-- [DOCS.md](DOCS.md) — Full technical documentation (architecture, API spec, module details)
-- [Todo.md](Todo.md) — Implementation progress and upcoming features
-- [IMPLEMENTATION.md](IMPLEMENTATION.md) — No-membership whale scanner implementation notes
-
-## Getting an API Key
-
-1. Register at https://etherscan.io/register
-2. After login, go to https://etherscan.io/myapikey
-3. Click "Add" to create a new API Key
-4. Paste it into `backend/.env`
-
-Free tier: 100,000 calls/day, 3 calls/sec.
+- [DOCS.md](DOCS.md): technical documentation
+- [Todo.md](Todo.md): implementation progress and upcoming work
+- [IMPLEMENTATION.md](IMPLEMENTATION.md): no-membership whale scanner implementation notes
