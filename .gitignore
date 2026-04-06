@@ -4,6 +4,9 @@
 # Go
 backend/eth-sweeper
 backend/eth-sweeper.exe
+.gocache/
+.gomodcache/
+.devlogs/
 
 # Node
 frontend/node_modules/

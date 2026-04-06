@@ -97,6 +97,7 @@ gofmt -w .
 
 - [DOCS.md](DOCS.md) — Full technical documentation (architecture, API spec, module details)
 - [Todo.md](Todo.md) — Implementation progress and upcoming features
+- [IMPLEMENTATION.md](IMPLEMENTATION.md) — No-membership whale scanner implementation notes
 
 ## Getting an API Key
 

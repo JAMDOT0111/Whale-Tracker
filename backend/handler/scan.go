@@ -12,12 +12,20 @@ import (
 type Handler struct {
 	etherscan *service.EtherscanClient
 	graph     *service.GraphService
+	store     *service.AppStore
+	prices    *service.PriceService
+	news      *service.NewsService
+	alerts    *service.AlertService
 }
 
-func NewHandler(etherscan *service.EtherscanClient, graph *service.GraphService) *Handler {
+func NewHandler(etherscan *service.EtherscanClient, graph *service.GraphService, store *service.AppStore, prices *service.PriceService, news *service.NewsService, alerts *service.AlertService) *Handler {
 	return &Handler{
 		etherscan: etherscan,
 		graph:     graph,
+		store:     store,
+		prices:    prices,
+		news:      news,
+		alerts:    alerts,
 	}
 }
 

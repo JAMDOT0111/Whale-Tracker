@@ -27,7 +27,7 @@ type EtherscanClient struct {
 func NewEtherscanClient() *EtherscanClient {
 	apiKey := os.Getenv("ETHERSCAN_API_KEY")
 	if apiKey == "" {
-		panic("ETHERSCAN_API_KEY environment variable is required")
+		log.Println("[etherscan] ETHERSCAN_API_KEY is not set; live chain lookups will return a clear error")
 	}
 
 	return &EtherscanClient{
@@ -40,6 +40,9 @@ func NewEtherscanClient() *EtherscanClient {
 }
 
 func (c *EtherscanClient) GetTransactions(address string, pageKey string, pageSize int) (*model.ScanResponse, error) {
+	if c.apiKey == "" {
+		return nil, fmt.Errorf("ETHERSCAN_API_KEY is required for live transaction scans")
+	}
 	if pageSize <= 0 || pageSize > 10000 {
 		pageSize = 100
 	}
@@ -90,6 +93,9 @@ func (c *EtherscanClient) GetTransactions(address string, pageKey string, pageSi
 }
 
 func (c *EtherscanClient) GetAllTransactionsForGraph(address string) ([]model.Transaction, error) {
+	if c.apiKey == "" {
+		return nil, fmt.Errorf("ETHERSCAN_API_KEY is required for graph scans")
+	}
 	if cached, ok := c.cache.Load(strings.ToLower(address)); ok {
 		return cached.([]model.Transaction), nil
 	}
@@ -115,6 +121,9 @@ func (c *EtherscanClient) GetAllTransactionsForGraph(address string) ([]model.Tr
 }
 
 func (c *EtherscanClient) GetBalance(address string) (*model.BalanceResponse, error) {
+	if c.apiKey == "" {
+		return nil, fmt.Errorf("ETHERSCAN_API_KEY is required for live balance lookups")
+	}
 	resp, err := c.callAPI(map[string]string{
 		"module":  "account",
 		"action":  "balance",
@@ -159,6 +168,9 @@ func (c *EtherscanClient) GetBalance(address string) (*model.BalanceResponse, er
 }
 
 func (c *EtherscanClient) IsContract(address string) bool {
+	if c.apiKey == "" {
+		return false
+	}
 	cacheKey := "contract:" + strings.ToLower(address)
 	if cached, ok := c.cache.Load(cacheKey); ok {
 		return cached.(bool)
@@ -213,6 +225,9 @@ func (c *EtherscanClient) rateLimit() {
 }
 
 func (c *EtherscanClient) callAPI(params map[string]string) (*model.EtherscanResponse, error) {
+	if c.apiKey == "" {
+		return nil, fmt.Errorf("ETHERSCAN_API_KEY is not configured")
+	}
 	var lastErr error
 
 	for attempt := range maxRetries {

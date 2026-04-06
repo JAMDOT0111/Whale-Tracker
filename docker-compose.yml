@@ -1,9 +1,31 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: eth_scanner
+      POSTGRES_USER: eth_scanner
+      POSTGRES_PASSWORD: eth_scanner
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d:ro
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
   backend:
     build: ./backend
     env_file: ./backend/.env
     ports:
       - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
     restart: unless-stopped
 
   frontend:
@@ -13,3 +35,6 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+volumes:
+  postgres_data:

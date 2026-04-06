@@ -55,7 +55,7 @@ export default function TransactionTimeline({ transactions, centerAddress }: Tra
           <Tooltip
             contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: 8, fontSize: 12 }}
             labelStyle={{ color: '#e5e7eb' }}
-            formatter={(value: number, name: string) => {
+            formatter={(value, name) => {
               const label = name === 'inCount' ? '轉入' : '轉出';
               return [value, label];
             }}

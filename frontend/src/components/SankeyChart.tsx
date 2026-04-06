@@ -11,11 +11,12 @@ interface SankeyChartProps {
 interface SNode {
   id: string;
   name: string;
+  nodeId: string;
 }
 
 interface SLink {
-  source: number;
-  target: number;
+  source: string;
+  target: string;
   value: number;
 }
 
@@ -58,8 +59,9 @@ export default function SankeyChart({ transactions, centerAddress }: SankeyChart
     const nodeIndex = new Map<string, number>();
 
     for (const addr of topAddresses) {
-      nodeIndex.set(addr, nodeList.length);
-      nodeList.push({ id: addr, name: shortenAddr(addr) });
+      const index = nodeList.length;
+      nodeIndex.set(addr, index);
+      nodeList.push({ id: addr, name: shortenAddr(addr), nodeId: String(index) });
     }
 
     const linkList: SLink[] = [];
@@ -67,8 +69,8 @@ export default function SankeyChart({ transactions, centerAddress }: SankeyChart
       const [from, to] = key.split('|');
       if (!nodeIndex.has(from) || !nodeIndex.has(to)) continue;
       linkList.push({
-        source: nodeIndex.get(from)!,
-        target: nodeIndex.get(to)!,
+        source: String(nodeIndex.get(from)!),
+        target: String(nodeIndex.get(to)!),
         value: val,
       });
     }
@@ -83,7 +85,7 @@ export default function SankeyChart({ transactions, centerAddress }: SankeyChart
     const height = 300;
 
     const generator = sankey<SNode, SLink>()
-      .nodeId((_d, i) => i)
+      .nodeId((d) => d.nodeId)
       .nodeWidth(12)
       .nodePadding(8)
       .extent([
