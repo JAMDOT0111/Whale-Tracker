@@ -175,6 +175,22 @@ type NewsResponse struct {
 	CachedAt string     `json:"cached_at"`
 }
 
+type FigureNewsItem struct {
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	URL         string `json:"url"`
+	Source      string `json:"source"`
+	PublishedAt string `json:"published_at"`
+	Snippet     string `json:"snippet"`
+	Person      string `json:"person"`
+}
+
+type FigureNewsResponse struct {
+	Items    []FigureNewsItem `json:"items"`
+	Source   string           `json:"source"`
+	CachedAt string           `json:"cached_at"`
+}
+
 type AddressDetailResponse struct {
 	Address       string               `json:"address"`
 	Balance       *BalanceResponse     `json:"balance,omitempty"`

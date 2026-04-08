@@ -287,6 +287,10 @@ func (h *Handler) GetETHNews(c *gin.Context) {
 	c.JSON(http.StatusOK, h.news.GetETHNews(c.Request.Context()))
 }
 
+func (h *Handler) GetCryptoFigureNews(c *gin.Context) {
+	c.JSON(http.StatusOK, h.figures.GetCryptoFigureNews(c.Request.Context()))
+}
+
 func (h *Handler) ListWatchlists(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": h.store.ListWatchlists(c.Request.Context(), userIDFromRequest(c))})
 }

@@ -11,6 +11,7 @@ This repo now implements the first-stage, no-membership scanner plan.
 - Watchlists, alert events, notification preferences, Gmail dry-run/send support, and a 30-minute optional scheduler.
 - ETH price series from CoinGecko with demo fallback data.
 - ETH news links from GDELT with demo fallback data.
+- Vitalik / Trump crypto-related news from Google News RSS with explicit empty states when no matching article is found.
 - PostgreSQL migration schema for the planned durable store and Docker Compose services for PostgreSQL/Redis.
 - A new dark dashboard UI with whale filters, `TEH -> ETH` correction, watchlist controls, price chart, news, alerts, and address detail panels.
 
@@ -20,6 +21,7 @@ This repo now implements the first-stage, no-membership scanner plan.
 - PostgreSQL tables are provided in `backend/migrations/001_eth_scanner.sql`; wiring the repository implementation to those tables is the next persistence step.
 - Set `ETHERSCAN_API_KEY` to enable live balance, transaction, and graph lookups. Without it, the whale dashboard still opens with demo seed data and clear API errors for live scans.
 - Set `ETHERSCAN_TOP_ACCOUNTS_CSV_URL` to an authorized CSV URL for the top accounts seed data. If it is empty, `POST /api/admin/whales/import-etherscan-url` fetches Etherscan accounts pages directly. Use `ETHERSCAN_TOP_ACCOUNTS_PAGES=20` to control how many pages are fetched, and `AUTO_IMPORT_WHALES_ON_START=true` to sync when the server starts.
+- Important-figure crypto news is fetched from Google News RSS. The backend filters article titles so the panel only shows items that mention both the person and crypto-related keywords.
 - Set `GMAIL_DRY_RUN=true` for local notification testing. Set `GMAIL_ACCESS_TOKEN` and `GMAIL_FROM` only when you are ready to send through Gmail API.
 - Set `ENABLE_JOBS=true` to run the background watchlist scanner.
 
@@ -34,6 +36,7 @@ This repo now implements the first-stage, no-membership scanner plan.
 - `GET /api/addresses/:address/ai-summary`
 - `GET /api/prices/eth/ohlc?interval=5m`
 - `GET /api/news/eth`
+- `GET /api/news/crypto-figures`
 - `POST /api/watchlists`
 - `GET /api/alerts`
 - `POST /api/notification-preferences`

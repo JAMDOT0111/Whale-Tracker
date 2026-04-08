@@ -38,10 +38,11 @@ func main() {
 	}
 	priceService := service.NewPriceService()
 	newsService := service.NewNewsService()
+	figureNewsService := service.NewFigureNewsService()
 	notifyService := service.NewNotifyService()
 	alertService := service.NewAlertService(store, etherscanClient, notifyService)
 	alertService.StartScheduler(ctx)
-	h := handler.NewHandler(etherscanClient, graphService, store, priceService, newsService, alertService)
+	h := handler.NewHandler(etherscanClient, graphService, store, priceService, newsService, figureNewsService, alertService)
 
 	r := gin.Default()
 
@@ -73,6 +74,7 @@ func main() {
 		api.GET("/addresses/:address/ai-summary", h.GetAddressAISummary)
 		api.GET("/prices/eth/ohlc", h.GetETHPrices)
 		api.GET("/news/eth", h.GetETHNews)
+		api.GET("/news/crypto-figures", h.GetCryptoFigureNews)
 		api.GET("/watchlists", h.ListWatchlists)
 		api.POST("/watchlists/confirm", h.UpsertWatchlistWithConfirmation)
 		api.POST("/watchlists", h.UpsertWatchlist)

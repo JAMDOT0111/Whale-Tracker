@@ -8,6 +8,7 @@ import {
   getAddressDetail,
   getAddressGraph,
   getAddressTransactions,
+  getCryptoFigureNews,
   getETHNews,
   getETHPrices,
   getMe,
@@ -25,6 +26,7 @@ import type {
   AlertEvent,
   AppUser,
   AddressDetailResponse,
+  FigureNewsItem,
   GraphResponse,
   NewsItem,
   NotificationStatus,
@@ -62,6 +64,8 @@ function App() {
   const [priceInterval, setPriceInterval] = useState('5m');
   const [prices, setPrices] = useState<PricePoint[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
+  const [figureNews, setFigureNews] = useState<FigureNewsItem[]>([]);
+  const [figureNewsSource, setFigureNewsSource] = useState('');
   const [importLoading, setImportLoading] = useState(false);
   const [watchThreshold, setWatchThreshold] = useState(DEFAULT_WATCH_THRESHOLD);
   const [user, setUser] = useState<AppUser | null>(null);
@@ -101,9 +105,20 @@ function App() {
   );
 
   const loadSideData = useCallback(async () => {
-    const [priceResp, newsResp] = await Promise.allSettled([getETHPrices(priceInterval), getETHNews()]);
+    const [priceResp, newsResp, figureNewsResp] = await Promise.allSettled([
+      getETHPrices(priceInterval),
+      getETHNews(),
+      getCryptoFigureNews(),
+    ]);
     if (priceResp.status === 'fulfilled') setPrices(priceResp.value.items);
     if (newsResp.status === 'fulfilled') setNews(newsResp.value.items);
+    if (figureNewsResp.status === 'fulfilled') {
+      setFigureNews(figureNewsResp.value.items);
+      setFigureNewsSource(figureNewsResp.value.source);
+    } else {
+      setFigureNews([]);
+      setFigureNewsSource('crypto_figure_news_unavailable');
+    }
   }, [priceInterval]);
 
   const loadUserData = useCallback(async () => {
@@ -597,12 +612,38 @@ function App() {
           </section>
 
           <section className="rounded-lg border border-slate-700 bg-[#20231f] p-4">
+            <h2 className="text-sm font-semibold text-slate-200">重要人物相關新聞</h2>
+            <p className="mt-1 text-xs text-slate-500">Vitalik / Trump 的加密貨幣相關新聞。</p>
+            <div className="mt-3 space-y-3">
+              {figureNews.length === 0 && (
+                <p className="text-xs text-slate-500">{figureNewsEmptyMessage(figureNewsSource)}</p>
+              )}
+              {figureNews.slice(0, 3).map((item) => (
+                <a
+                  key={item.id}
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block rounded-lg border border-slate-700 px-3 py-2 hover:border-emerald-500"
+                >
+                  <span className="block text-xs text-emerald-300">
+                    {item.person} · {item.source} · {formatNewsTime(item.published_at)}
+                  </span>
+                  <span className="mt-2 block text-sm leading-5 text-slate-100">{item.title}</span>
+                  <span className="mt-2 block text-xs leading-5 text-slate-500">{item.snippet}</span>
+                </a>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-slate-700 bg-[#20231f] p-4">
             <h2 className="text-sm font-semibold text-slate-200">資料來源狀態</h2>
             <ul className="mt-3 space-y-2 text-xs text-slate-400">
               <li>Etherscan：單地址交易與餘額補查</li>
               <li>Top Accounts CSV：巨鯨種子匯入</li>
               <li>CoinGecko：ETH 價格快取</li>
               <li>GDELT：合規新聞連結</li>
+              <li>Google News RSS：Vitalik / Trump 加密貨幣新聞</li>
               <li>Gmail：通知寄送，支援 dry-run</li>
             </ul>
           </section>
@@ -836,6 +877,23 @@ function shortTime(raw: string, interval: string) {
   if (Number.isNaN(date.getTime())) return raw;
   if (interval === '5m') return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function formatNewsTime(raw: string) {
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleString('zh-TW', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function figureNewsEmptyMessage(source: string) {
+  if (source === 'crypto_figure_news_no_matches') return '目前沒有找到 Vitalik / Trump 的加密貨幣相關新聞。';
+  if (source === 'crypto_figure_news_unavailable') return '重要人物新聞來源暫時不可用，稍後再試。';
+  return '重要人物新聞載入中。';
 }
 
 function formatTaiwanDateTime(raw?: string) {

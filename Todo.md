@@ -157,3 +157,13 @@
 - [x] 保留原本清單點選地址功能
 - [x] 調整空狀態提示文案為輸入導向
 - [ ] 前端 lint 檢查（本機環境找不到 npm 指令，待你本機重跑）
+
+---
+
+## 本次任務：重要人物相關新聞
+
+- [x] 新增後端 Google News RSS 服務，抓取 Vitalik / Trump 加密貨幣相關新聞
+- [x] 新增 `/api/news/crypto-figures` endpoint，來源失敗或無結果時回傳真實空狀態
+- [x] 前端在「ETH 相關報導」下方新增「重要人物相關新聞」區塊
+- [x] 更新 README / IMPLEMENTATION 說明與資料來源
+- [x] 執行後端測試與前端 build/lint
