@@ -304,7 +304,7 @@ function App() {
               disabled={loading}
               className="mt-4 w-full rounded-lg border border-emerald-500 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50"
             >
-              {loading ? '套用中...' : '套用篩選'}
+              {loading ? '掃描中...' : '更新列表'}
             </button>
             <p className="mt-3 text-xs leading-5 text-slate-500">
               來源採 Etherscan Top Accounts 同步資料；若未設定 CSV URL，後端會嘗試讀取公開帳戶頁。
