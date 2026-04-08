@@ -92,6 +92,47 @@ func (c *EtherscanClient) GetTransactions(address string, pageKey string, pageSi
 	}, nil
 }
 
+func (c *EtherscanClient) GetEthTransactions(address string, pageKey string, pageSize int) (*model.ScanResponse, error) {
+	if c.apiKey == "" {
+		return nil, fmt.Errorf("ETHERSCAN_API_KEY is required for live transaction scans")
+	}
+	if pageSize <= 0 || pageSize > 10000 {
+		pageSize = 100
+	}
+
+	page := 1
+	if pageKey != "" {
+		if p, err := strconv.Atoi(pageKey); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	var allTx []model.Transaction
+
+	normalTx, err := c.fetchNormalTx(address, page, pageSize)
+	if err != nil {
+		return nil, fmt.Errorf("normal tx: %w", err)
+	}
+	allTx = append(allTx, normalTx...)
+
+	internalTx, err := c.fetchInternalTx(address, page, pageSize)
+	if err != nil {
+		return nil, fmt.Errorf("internal tx: %w", err)
+	}
+	allTx = append(allTx, internalTx...)
+
+	nextPage := ""
+	if len(normalTx) == pageSize || len(internalTx) == pageSize {
+		nextPage = strconv.Itoa(page + 1)
+	}
+
+	return &model.ScanResponse{
+		Transactions: allTx,
+		PageKey:      nextPage,
+		Total:        len(allTx),
+	}, nil
+}
+
 func (c *EtherscanClient) GetAllTransactionsForGraph(address string) ([]model.Transaction, error) {
 	if c.apiKey == "" {
 		return nil, fmt.Errorf("ETHERSCAN_API_KEY is required for graph scans")

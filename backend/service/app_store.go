@@ -23,8 +23,9 @@ type AppStore struct {
 	preferences   map[string]model.NotificationPreference
 	whales        map[string]model.WhaleAccount
 	watchlists    map[string]model.WatchlistItem
-	alerts        map[string]model.AlertEvent
-	notifications map[string]model.NotificationLog
+	alerts          map[string]model.AlertEvent
+	alertDedupeKeys map[string]string
+	notifications   map[string]model.NotificationLog
 	snapshotAt    string
 }
 
@@ -34,9 +35,10 @@ func NewAppStore() *AppStore {
 		gmailTokens:   map[string]model.GmailToken{},
 		preferences:   map[string]model.NotificationPreference{},
 		whales:        map[string]model.WhaleAccount{},
-		watchlists:    map[string]model.WatchlistItem{},
-		alerts:        map[string]model.AlertEvent{},
-		notifications: map[string]model.NotificationLog{},
+		watchlists:      map[string]model.WatchlistItem{},
+		alerts:          map[string]model.AlertEvent{},
+		alertDedupeKeys: map[string]string{},
+		notifications:   map[string]model.NotificationLog{},
 	}
 	if strings.EqualFold(os.Getenv("ENABLE_DEMO_DATA"), "true") {
 		store.seedDemoWhales()
@@ -340,12 +342,15 @@ func (s *AppStore) CreateAlert(_ context.Context, alert model.AlertEvent) (model
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, existing := range s.alerts {
-		if existing.DedupeKey == alert.DedupeKey {
-			return existing, false
+	
+	if existingID, exists := s.alertDedupeKeys[alert.DedupeKey]; exists {
+		if existingAlert, ok := s.alerts[existingID]; ok {
+			return existingAlert, false
 		}
 	}
+	
 	s.alerts[alert.ID] = alert
+	s.alertDedupeKeys[alert.DedupeKey] = alert.ID
 	return alert, true
 }
 
