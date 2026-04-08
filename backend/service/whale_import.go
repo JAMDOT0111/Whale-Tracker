@@ -21,7 +21,11 @@ import (
 var ethAddressPattern = regexp.MustCompile(`(?i)0x[0-9a-f]{40}`)
 var quickExportPattern = regexp.MustCompile(`(?s)const\s+quickExportAccountsData\s*=\s*'(.*?)';`)
 
-const maxWhaleCSVBytes = 25 * 1024 * 1024
+const (
+	maxWhaleCSVBytes                = 25 * 1024 * 1024
+	defaultEtherscanTopAccountPages = 400
+	maxEtherscanTopAccountPages     = 400
+)
 
 func (s *AppStore) ImportWhalesCSV(ctx context.Context, filename string, content []byte) (model.WhaleImportResponse, error) {
 	rows, err := readCSVRows(content)
@@ -114,10 +118,10 @@ func (s *AppStore) ImportWhalesFromURL(ctx context.Context, rawURL string) (mode
 
 func (s *AppStore) ImportWhalesFromEtherscanPages(ctx context.Context, maxPages int) (model.WhaleImportResponse, error) {
 	if maxPages <= 0 {
-		maxPages = 20
+		maxPages = defaultEtherscanTopAccountPages
 	}
-	if maxPages > 400 {
-		maxPages = 400
+	if maxPages > maxEtherscanTopAccountPages {
+		maxPages = maxEtherscanTopAccountPages
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
@@ -237,11 +241,11 @@ func fetchEtherscanAccountsPage(ctx context.Context, client *http.Client, page i
 func configuredEtherscanPages() int {
 	raw := strings.TrimSpace(os.Getenv("ETHERSCAN_TOP_ACCOUNTS_PAGES"))
 	if raw == "" {
-		return 20
+		return defaultEtherscanTopAccountPages
 	}
 	pages, err := strconv.Atoi(raw)
 	if err != nil || pages <= 0 {
-		return 20
+		return defaultEtherscanTopAccountPages
 	}
 	return pages
 }
