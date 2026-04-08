@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import AddressInput from './components/AddressInput';
 import GraphView from './components/GraphView';
 import {
   captureGoogleOAuthCallback,
@@ -539,6 +540,14 @@ function App() {
           </div>
 
           <div className="rounded-lg border border-slate-700 bg-[#20231f] p-4">
+            <h2 className="text-base font-semibold">單一地址搜尋</h2>
+            <p className="mt-1 text-xs text-slate-500">輸入 ETH 地址後，直接載入單一地址分析。</p>
+            <div className="mt-3">
+              <AddressInput onScan={selectAddress} loading={detailLoading} initialAddress={selectedAddress} />
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-700 bg-[#20231f] p-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 className="text-base font-semibold">ETH 價格走勢</h2>
@@ -663,7 +672,7 @@ function AddressDetailPanel({
   if (!detail) {
     return (
       <div className="rounded-lg border border-slate-700 bg-[#20231f] p-4 text-sm text-slate-400">
-        選擇一個地址查看詳情。
+        請輸入一個地址後查看詳情。
       </div>
     );
   }
