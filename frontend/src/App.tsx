@@ -849,6 +849,8 @@ function tagClass(category: string) {
       return `${base} border-amber-300 bg-amber-300/10 text-amber-100`;
     case 'whale':
       return `${base} border-emerald-300 bg-emerald-300/10 text-emerald-100`;
+    case 'safe':
+      return `${base} border-blue-400 bg-blue-400/10 text-blue-200`;
     case 'scam':
     case 'high_risk':
       return `${base} border-red-300 bg-red-300/10 text-red-100`;
