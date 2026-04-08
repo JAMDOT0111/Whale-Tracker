@@ -52,6 +52,7 @@ function App() {
   const [sort, setSort] = useState<SortKey>('balance_desc');
   const [page, setPage] = useState(1);
   const [whales, setWhales] = useState<WhaleListResponse | null>(null);
+  const [inputAddress, setInputAddress] = useState('');
   const [selectedAddress, setSelectedAddress] = useState('');
   const [detail, setDetail] = useState<AddressDetailResponse | null>(null);
   const [summary, setSummary] = useState<AISummaryResponse | null>(null);
@@ -68,8 +69,11 @@ function App() {
   const [notificationStatus, setNotificationStatus] = useState<NotificationStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
+  const [graphLoading, setGraphLoading] = useState(false);
   const [testEmailLoading, setTestEmailLoading] = useState(false);
   const [error, setError] = useState('');
+  const [graphMessage, setGraphMessage] = useState('');
   const [importMessage, setImportMessage] = useState('');
   const [notificationMessage, setNotificationMessage] = useState('');
 
@@ -148,25 +152,44 @@ function App() {
 
   const selectAddress = useCallback(async (address: string) => {
     setSelectedAddress(address);
+    setInputAddress(address);
     setDetailLoading(true);
+    setTransactionsLoading(true);
+    setGraphLoading(true);
+    setGraphMessage('');
     setDetail(null);
     setSummary(null);
     setTransactions([]);
     setGraph(null);
     setError('');
 
-    const [detailResp, summaryResp, txResp, graphResp] = await Promise.allSettled([
+    const graphTask = withTimeout(getAddressGraph(address), 15000, '關聯圖載入逾時，請稍後再試。');
+    const [detailResp, summaryResp, txResp] = await Promise.allSettled([
       getAddressDetail(address),
       getAddressAISummary(address),
       getAddressTransactions(address),
-      getAddressGraph(address),
     ]);
+
     if (detailResp.status === 'fulfilled') setDetail(detailResp.value);
     if (summaryResp.status === 'fulfilled') setSummary(summaryResp.value);
     if (txResp.status === 'fulfilled') setTransactions(txResp.value.transactions);
-    if (graphResp.status === 'fulfilled') setGraph(graphResp.value);
     if (detailResp.status === 'rejected') setError(errorMessage(detailResp.reason));
+    if (txResp.status === 'rejected') setError(errorMessage(txResp.reason));
     setDetailLoading(false);
+    setTransactionsLoading(false);
+
+    const graphResp = await Promise.allSettled([graphTask]);
+    if (graphResp[0].status === 'fulfilled') {
+      setGraph(graphResp[0].value);
+    } else {
+      setGraphMessage(errorMessage(graphResp[0].reason));
+    }
+    setGraphLoading(false);
+  }, []);
+
+  const prefillAddress = useCallback((address: string) => {
+    setInputAddress(address);
+    setSelectedAddress(address);
   }, []);
 
   const requireGoogleLogin = useCallback((): AppUser | null => {
@@ -374,7 +397,7 @@ function App() {
               {watchlists.slice(0, 6).map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => selectAddress(item.address)}
+                  onClick={() => prefillAddress(item.address)}
                   className="block w-full rounded-lg border border-slate-700 px-3 py-2 text-left text-xs text-slate-300 hover:border-emerald-500"
                 >
                   <span className="block font-mono">{shortAddress(item.address)}</span>
@@ -441,7 +464,7 @@ function App() {
                     >
                       <td className="px-4 py-3 text-slate-400">{whale.rank}</td>
                       <td className="px-4 py-3">
-                        <button onClick={() => selectAddress(whale.address)} className="text-left">
+                        <button onClick={() => prefillAddress(whale.address)} className="text-left">
                           <span className="block font-mono text-slate-100">{shortAddress(whale.address)}</span>
                           {whale.name_tag && <span className="text-xs text-slate-500">{whale.name_tag}</span>}
                         </button>
@@ -508,9 +531,9 @@ function App() {
 
           <div className="rounded-lg border border-slate-700 bg-[#20231f] p-4">
             <h2 className="text-base font-semibold">單一地址搜尋</h2>
-            <p className="mt-1 text-xs text-slate-500">輸入 ETH 地址後，直接載入單一地址分析。</p>
+            <p className="mt-1 text-xs text-slate-500">輸入 ETH 地址後，按掃描載入單一地址分析。</p>
             <div className="mt-3">
-              <AddressInput onScan={selectAddress} loading={detailLoading} initialAddress={selectedAddress} />
+              <AddressInput onScan={selectAddress} onChange={setInputAddress} loading={detailLoading} value={inputAddress} />
             </div>
           </div>
 
@@ -556,6 +579,9 @@ function App() {
             graph={graph}
             selectedWhale={selectedWhale}
             loading={detailLoading}
+            transactionsLoading={transactionsLoading}
+            graphLoading={graphLoading}
+            graphMessage={graphMessage}
             onTrack={handleTrack}
           />
         </section>
@@ -568,7 +594,7 @@ function App() {
               {alerts.slice(0, 6).map((alert) => (
                 <button
                   key={alert.id}
-                  onClick={() => selectAddress(alert.address)}
+                  onClick={() => prefillAddress(alert.address)}
                   className="block w-full rounded-lg border border-slate-700 px-3 py-2 text-left hover:border-emerald-500"
                 >
                   <span className="block text-sm text-slate-100">{alert.title}</span>
@@ -619,6 +645,9 @@ function AddressDetailPanel({
   graph,
   selectedWhale,
   loading,
+  transactionsLoading,
+  graphLoading,
+  graphMessage,
   onTrack,
 }: {
   detail: AddressDetailResponse | null;
@@ -627,6 +656,9 @@ function AddressDetailPanel({
   graph: GraphResponse | null;
   selectedWhale?: WhaleAccount;
   loading: boolean;
+  transactionsLoading: boolean;
+  graphLoading: boolean;
+  graphMessage: string;
   onTrack: (address: string, alias?: string) => void;
 }) {
   if (loading) {
@@ -699,7 +731,8 @@ function AddressDetailPanel({
         <div className="rounded-lg border border-slate-700 bg-[#171a18] p-3">
           <h3 className="text-sm font-semibold text-slate-200">交易歷史</h3>
           <div className="mt-3 max-h-72 overflow-auto">
-            {transactions.length === 0 && (
+            {transactionsLoading && <p className="text-xs text-slate-500">交易資料載入中...</p>}
+            {!transactionsLoading && transactions.length === 0 && (
               <p className="text-xs text-slate-500">尚無交易資料，或 Etherscan API key 尚未設定。</p>
             )}
             {transactions.slice(0, 25).map((tx) => (
@@ -721,7 +754,9 @@ function AddressDetailPanel({
         <div className="rounded-lg border border-slate-700 bg-[#171a18] p-3">
           <h3 className="text-sm font-semibold text-slate-200">關聯圖</h3>
           <div className="mt-3 h-72">
-            {graph && graph.nodes.length > 0 ? (
+            {graphLoading ? (
+              <p className="text-xs text-slate-500">關聯圖載入中...</p>
+            ) : graph && graph.nodes.length > 0 ? (
               <GraphView
                 data={graph}
                 onNodeClick={() => undefined}
@@ -729,6 +764,8 @@ function AddressDetailPanel({
                 markedAddresses={new Set()}
                 customNames={{}}
               />
+            ) : graphMessage ? (
+              <p className="text-xs text-amber-300">{graphMessage}</p>
             ) : (
               <p className="text-xs text-slate-500">尚無圖形資料，或 Etherscan API key 尚未設定。</p>
             )}
@@ -840,6 +877,21 @@ function shortTime(raw: string, interval: string) {
 
 function errorMessage(err: unknown) {
   return err instanceof Error ? err.message : '發生未知錯誤';
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+    promise
+      .then((value) => {
+        clearTimeout(timeoutId);
+        resolve(value);
+      })
+      .catch((err) => {
+        clearTimeout(timeoutId);
+        reject(err);
+      });
+  });
 }
 
 export default App;

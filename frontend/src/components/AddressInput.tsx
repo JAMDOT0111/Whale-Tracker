@@ -1,15 +1,12 @@
-import { useState, useMemo } from 'react';
-
 interface AddressInputProps {
   onScan: (address: string) => void;
+  onChange: (address: string) => void;
   loading: boolean;
-  initialAddress?: string;
+  value: string;
 }
 
-export default function AddressInput({ onScan, loading, initialAddress }: AddressInputProps) {
-  const [localInput, setLocalInput] = useState('');
-  const address = useMemo(() => localInput || initialAddress || '', [localInput, initialAddress]);
-
+export default function AddressInput({ onScan, onChange, loading, value }: AddressInputProps) {
+  const address = value.trim();
   const isValidAddress = /^0x[0-9a-fA-F]{40}$/.test(address);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -25,7 +22,7 @@ export default function AddressInput({ onScan, loading, initialAddress }: Addres
         <input
           type="text"
           value={address}
-          onChange={(e) => setLocalInput(e.target.value.trim())}
+          onChange={(e) => onChange(e.target.value)}
           placeholder="輸入 ETH 錢包地址 (0x...)"
           className="flex-1 px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white font-mono text-sm placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
         />
