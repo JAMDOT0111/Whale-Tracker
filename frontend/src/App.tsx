@@ -399,7 +399,7 @@ function App() {
                 <p className="text-xs text-slate-500">
                   {whales
                     ? `總數 ${whales.total.toLocaleString()} 筆 · 目前 ${visibleRange(whales)} · 快照 ${
-                        whales.snapshot_at || 'demo'
+                        formatTaiwanDateTime(whales.snapshot_at) || 'demo'
                       }`
                     : '載入中'}
                 </p>
@@ -836,6 +836,26 @@ function shortTime(raw: string, interval: string) {
   if (Number.isNaN(date.getTime())) return raw;
   if (interval === '5m') return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function formatTaiwanDateTime(raw?: string) {
+  if (!raw) return '';
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+
+  const parts = new Intl.DateTimeFormat('zh-TW', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '';
+  return `${value('year')}/${value('month')}/${value('day')} ${value('hour')}:${value('minute')}:${value('second')}`;
 }
 
 function errorMessage(err: unknown) {
