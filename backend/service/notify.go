@@ -162,7 +162,11 @@ func renderAlertEmail(alert model.AlertEvent) string {
 	if strings.HasPrefix(strings.ToLower(alert.Address), "0x") {
 		b.WriteString("Address link: https://etherscan.io/address/" + alert.Address + "\n")
 	}
-	b.WriteString("Threshold: > " + alert.ThresholdETH + " ETH\n")
+	if alert.Type == "test_notification" {
+		b.WriteString("Threshold: N/A (發信系統連線測試)\n")
+	} else {
+		b.WriteString("Threshold: > " + alert.ThresholdETH + " ETH\n")
+	}
 	b.WriteString("Confidence: " + fmt.Sprintf("%.0f%%", alert.Confidence*100) + "\n")
 	b.WriteString("Heuristic: true. This is not financial advice and not a definitive fraud finding.\n\n")
 	if len(alert.Evidence) > 0 {

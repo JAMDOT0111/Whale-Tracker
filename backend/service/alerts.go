@@ -42,7 +42,7 @@ func (s *AlertService) SendTestNotification(ctx context.Context, userID string, 
 		Address:      "0x00000000219ab540356cbb839cbe05303d7705fa",
 		Type:         "test_notification",
 		Severity:     "info",
-		ThresholdETH: "500",
+		ThresholdETH: "0 (test mail)",
 		Title:        "Test notification",
 		Description:  "This is a real delivery test from ETH Whale Scanner.",
 		Evidence: []model.Evidence{{
@@ -108,6 +108,58 @@ func (s *AlertService) SendWatchlistConfirmation(ctx context.Context, userID str
 		Heuristic:  true,
 		Status:     "open",
 		DedupeKey:  "watch-confirm:" + userID + ":" + item.Address + ":" + item.MinInteractionETH + ":" + now,
+		CreatedAt:  now,
+	}
+	msgID, err := s.notify.SendAlert(ctx, email, alert, s.store.GetGmailToken(ctx, userID))
+	logEntry := model.NotificationLog{
+		ID:       stableID(alert.ID + ":notification"),
+		AlertID:  alert.ID,
+		UserID:   userID,
+		Channel:  "gmail",
+		Status:   "sent",
+		Attempts: 1,
+	}
+	if err != nil {
+		logEntry.Status = "failed"
+		logEntry.Error = err.Error()
+		logEntry.NextRetryAt = nextRetryTime(1)
+		s.store.AddNotificationLog(ctx, logEntry)
+		return logEntry, err
+	}
+	logEntry.ProviderMessageID = msgID
+	s.store.AddNotificationLog(ctx, logEntry)
+	return logEntry, nil
+}
+
+func (s *AlertService) SendWatchlistCancellation(ctx context.Context, userID string, item model.WatchlistItem) (model.NotificationLog, error) {
+	pref := s.store.GetPreference(ctx, userID)
+	email := pref.Email
+	if email == "" {
+		if user, ok := s.store.GetUser(ctx, userID); ok {
+			email = user.Email
+		}
+	}
+	now := nowISO()
+	alert := model.AlertEvent{
+		ID:           "watch-cancel-" + stableID(userID+":"+item.Address+":"+now),
+		UserID:       userID,
+		Address:      item.Address,
+		Type:         "watchlist_cancellation",
+		Severity:     "info",
+		ThresholdETH: "0 (已取消追蹤)",
+		Title:        "Watchlist disabled",
+		Description:  fmt.Sprintf("You are no longer watching %s. Alerts for this address have been stopped.", labelOrAddress(item)),
+		Evidence: []model.Evidence{{
+			Asset:     "ETH",
+			ValueETH:  "0",
+			Timestamp: now,
+			Reason:    "Watchlist cancellation",
+		}},
+		Labels:     item.Labels,
+		Confidence: 1,
+		Heuristic:  true,
+		Status:     "open",
+		DedupeKey:  "watch-cancel:" + userID + ":" + item.Address + ":" + now,
 		CreatedAt:  now,
 	}
 	msgID, err := s.notify.SendAlert(ctx, email, alert, s.store.GetGmailToken(ctx, userID))

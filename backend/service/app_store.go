@@ -163,11 +163,14 @@ func (s *AppStore) ListWhales(_ context.Context, minBalance float64, sortKey str
 	tracked := s.trackedAddressesLocked(userID)
 	items := make([]model.WhaleAccount, 0, len(s.whales))
 	for _, whale := range s.whales {
+		whale.IsTracked = tracked[whale.Address]
+		if sortKey == "tracked" && !whale.IsTracked {
+			continue
+		}
 		bal := parseFloatSafe(whale.BalanceETH)
 		if minBalance > 0 && bal < minBalance {
 			continue
 		}
-		whale.IsTracked = tracked[whale.Address]
 		items = append(items, whale)
 	}
 
@@ -175,10 +178,6 @@ func (s *AppStore) ListWhales(_ context.Context, minBalance float64, sortKey str
 		switch sortKey {
 		case "balance_asc":
 			return parseFloatSafe(items[i].BalanceETH) < parseFloatSafe(items[j].BalanceETH)
-		case "rank_desc":
-			return items[i].Rank > items[j].Rank
-		case "rank_asc":
-			return items[i].Rank < items[j].Rank
 		default:
 			return parseFloatSafe(items[i].BalanceETH) > parseFloatSafe(items[j].BalanceETH)
 		}
@@ -276,7 +275,7 @@ func (s *AppStore) ListWatchlists(_ context.Context, userID string) []model.Watc
 	return items
 }
 
-func (s *AppStore) DeleteWatchlist(_ context.Context, userID, id string) bool {
+func (s *AppStore) DeleteWatchlist(_ context.Context, userID, id string) (model.WatchlistItem, bool) {
 	if userID == "" {
 		userID = anonymousUserID
 	}
@@ -285,10 +284,10 @@ func (s *AppStore) DeleteWatchlist(_ context.Context, userID, id string) bool {
 
 	item, ok := s.watchlists[id]
 	if !ok || item.UserID != userID {
-		return false
+		return model.WatchlistItem{}, false
 	}
 	delete(s.watchlists, id)
-	return true
+	return item, true
 }
 
 func (s *AppStore) UpsertPreference(_ context.Context, userID string, pref model.NotificationPreference) model.NotificationPreference {
