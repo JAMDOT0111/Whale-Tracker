@@ -63,6 +63,7 @@ function App() {
   const [priceInterval, setPriceInterval] = useState('5m');
   const [prices, setPrices] = useState<PricePoint[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
+  const [selectedNewsItem, setSelectedNewsItem] = useState<NewsItem | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const [watchThreshold, setWatchThreshold] = useState(DEFAULT_WATCH_THRESHOLD);
   const [user, setUser] = useState<AppUser | null>(null);
@@ -303,6 +304,7 @@ function App() {
   }));
 
   const selectedWhale = whales?.items.find((item) => item.address === selectedAddress);
+  const newsTickerItems = news.length > 0 ? [...news, ...news] : [];
 
   return (
     <div className="min-h-screen bg-[#171a18] text-slate-100">
@@ -616,19 +618,26 @@ function App() {
 
           <section className="rounded-lg border border-slate-700 bg-[#20231f] p-4">
             <h2 className="text-sm font-semibold text-slate-200">ETH 相關報導</h2>
-            <div className="mt-3 space-y-3">
-              {news.map((item) => (
-                <a
-                  key={item.id}
-                  href={item.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block rounded-lg border border-slate-700 px-3 py-2 hover:border-emerald-500"
-                >
-                  <span className="block text-sm text-slate-100">{item.title}</span>
-                  <span className="mt-1 block text-xs text-slate-500">{item.source}</span>
-                </a>
-              ))}
+            <div className="news-ticker mt-3 overflow-hidden rounded-lg border border-slate-700 bg-[#171a18]">
+              {newsTickerItems.length === 0 ? (
+                <p className="px-3 py-3 text-xs text-slate-500">新聞來源暫時不可用，稍後再試。</p>
+              ) : (
+                <div className="news-ticker-track flex gap-3 py-3">
+                  {newsTickerItems.map((item, index) => (
+                    <button
+                      key={`${item.id}-${index}`}
+                      type="button"
+                      onClick={() => setSelectedNewsItem(item)}
+                      className="w-72 shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-left hover:border-emerald-500 focus:border-emerald-400 focus:outline-none"
+                    >
+                      <span className="block text-sm font-medium leading-5 text-slate-100">{item.title}</span>
+                      <span className="mt-2 block text-xs text-slate-500">
+                        {item.source} · {formatNewsTime(item.published_at)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </section>
 
@@ -638,12 +647,55 @@ function App() {
               <li>Etherscan：單地址交易與餘額補查</li>
               <li>Top Accounts CSV：巨鯨種子匯入</li>
               <li>CoinGecko：ETH 價格快取</li>
-              <li>GDELT：合規新聞連結</li>
+              <li>GDELT / Cointelegraph：合規新聞連結</li>
               <li>Gmail：通知寄送，支援 dry-run</li>
             </ul>
           </section>
         </aside>
       </main>
+      {selectedNewsItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+          <button
+            type="button"
+            aria-label="關閉新聞詳情"
+            onClick={() => setSelectedNewsItem(null)}
+            className="absolute inset-0 bg-black/70"
+          />
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="news-dialog-title"
+            className="relative w-full max-w-lg rounded-lg border border-slate-700 bg-[#20231f] p-5 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs text-emerald-300">
+                  {selectedNewsItem.source} · {formatNewsTime(selectedNewsItem.published_at)}
+                </p>
+                <h2 id="news-dialog-title" className="mt-2 text-lg font-semibold leading-6 text-slate-100">
+                  {selectedNewsItem.title}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedNewsItem(null)}
+                className="rounded-lg border border-slate-600 px-2 py-1 text-xs text-slate-300 hover:border-emerald-500"
+              >
+                關閉
+              </button>
+            </div>
+            <p className="mt-4 text-sm leading-6 text-slate-300">{selectedNewsItem.snippet}</p>
+            <a
+              href={selectedNewsItem.url}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 inline-flex rounded-lg border border-emerald-500 px-4 py-2 text-sm font-medium text-emerald-200 hover:bg-emerald-500/10"
+            >
+              開啟原文
+            </a>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
@@ -933,6 +985,17 @@ function shortTime(raw: string, interval: string) {
   if (Number.isNaN(date.getTime())) return raw;
   if (interval === '5m') return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function formatNewsTime(raw: string) {
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleString('zh-TW', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function formatTaiwanDateTime(raw?: string) {
