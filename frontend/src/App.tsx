@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import AddressInput from './components/AddressInput';
 import GraphView from './components/GraphView';
@@ -52,6 +52,7 @@ function App() {
   const [sort, setSort] = useState<SortKey>('balance_desc');
   const [page, setPage] = useState(1);
   const [whales, setWhales] = useState<WhaleListResponse | null>(null);
+  const [whaleListVersion, setWhaleListVersion] = useState(0);
   const [selectedAddress, setSelectedAddress] = useState('');
   const [detail, setDetail] = useState<AddressDetailResponse | null>(null);
   const [summary, setSummary] = useState<AISummaryResponse | null>(null);
@@ -66,39 +67,56 @@ function App() {
   const [watchThreshold, setWatchThreshold] = useState(DEFAULT_WATCH_THRESHOLD);
   const [user, setUser] = useState<AppUser | null>(null);
   const [notificationStatus, setNotificationStatus] = useState<NotificationStatus | null>(null);
-  const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [testEmailLoading, setTestEmailLoading] = useState(false);
   const [error, setError] = useState('');
   const [importMessage, setImportMessage] = useState('');
   const [notificationMessage, setNotificationMessage] = useState('');
+  const thresholdRef = useRef(threshold);
+  const sortRef = useRef(sort);
+  const latestWhalesRequestId = useRef(0);
+
+  useEffect(() => {
+    thresholdRef.current = threshold;
+  }, [threshold]);
+
+  useEffect(() => {
+    sortRef.current = sort;
+  }, [sort]);
 
   const loadWhales = useCallback(
     async (nextPage = page) => {
-      setLoading(true);
+      const requestId = ++latestWhalesRequestId.current;
       setError('');
-      const normalized = parseThreshold(threshold);
+      const normalized = parseThreshold(thresholdRef.current);
       setThresholdNotice(normalized.message);
       if (normalized.message.includes('TEH')) {
-        setThreshold(`> ${normalized.value} ETH`);
+        const normalizedThreshold = `> ${normalized.value} ETH`;
+        thresholdRef.current = normalizedThreshold;
+        setThreshold(normalizedThreshold);
       }
       try {
         const resp = await listWhales({
           minBalanceEth: normalized.value,
-          sort,
+          sort: sortRef.current,
           page: nextPage,
           pageSize: PAGE_SIZE,
         });
-        setWhales(resp);
-        setPage(nextPage);
+        if (requestId === latestWhalesRequestId.current) {
+          setWhales(resp);
+          setPage(nextPage);
+          setWhaleListVersion((version) => version + 1);
+        }
       } catch (err) {
-        setError(errorMessage(err));
-      } finally {
-        setLoading(false);
+        if (requestId === latestWhalesRequestId.current) setError(errorMessage(err));
       }
     },
-    [page, sort, threshold],
+    [page],
   );
+
+  const handleUpdateWhales = useCallback(async () => {
+    await loadWhales(1);
+  }, [loadWhales]);
 
   const loadSideData = useCallback(async () => {
     const [priceResp, newsResp] = await Promise.allSettled([getETHPrices(priceInterval), getETHNews()]);
@@ -294,18 +312,11 @@ function App() {
               className="mt-2 w-full rounded-lg border border-slate-700 bg-[#171a18] px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
               placeholder="> 1000 ETH"
             />
-            <div className="mt-2 flex justify-between text-xs text-slate-500">
-              <span>10k</span>
-              <span>500k</span>
-            </div>
             {thresholdNotice && <p className="mt-2 text-xs text-emerald-300">{thresholdNotice}</p>}
-            <button
-              onClick={() => loadWhales(1)}
-              disabled={loading}
-              className="mt-4 w-full rounded-lg border border-emerald-500 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50"
-            >
-              {loading ? '掃描中...' : '更新列表'}
-            </button>
+            <WhaleListUpdateButton
+              key={whaleListVersion}
+              onUpdate={handleUpdateWhales}
+            />
             <p className="mt-3 text-xs leading-5 text-slate-500">
               來源採 Etherscan Top Accounts 同步資料；若未設定 CSV URL，後端會嘗試讀取公開帳戶頁。
             </p>
@@ -764,6 +775,56 @@ function Metric({ label, value, hint }: { label: string; value: string; hint?: s
       <p className="mt-1 text-lg font-semibold text-slate-100">{value}</p>
       {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
     </div>
+  );
+}
+
+function WhaleListUpdateButton({ onUpdate }: { onUpdate: () => Promise<void> }) {
+  const [updating, setUpdating] = useState(false);
+  const fallbackTimerRef = useRef<number | null>(null);
+
+  const stopUpdating = useCallback(() => {
+    if (fallbackTimerRef.current !== null) {
+      window.clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = null;
+    }
+    setUpdating(false);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (fallbackTimerRef.current !== null) {
+        window.clearTimeout(fallbackTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const handleClick = useCallback(async () => {
+    setUpdating(true);
+    if (fallbackTimerRef.current !== null) {
+      window.clearTimeout(fallbackTimerRef.current);
+    }
+    fallbackTimerRef.current = window.setTimeout(() => {
+      fallbackTimerRef.current = null;
+      setUpdating(false);
+    }, 5000);
+
+    try {
+      await onUpdate();
+    } finally {
+      stopUpdating();
+    }
+  }, [onUpdate, stopUpdating]);
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={updating}
+      className="mt-4 w-full rounded-lg border border-emerald-500 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50"
+    >
+      {updating ? '掃描中...' : '更新列表'}
+    </button>
   );
 }
 
