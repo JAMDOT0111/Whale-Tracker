@@ -330,10 +330,18 @@ func (h *Handler) UpsertWatchlistWithConfirmation(c *gin.Context) {
 }
 
 func (h *Handler) DeleteWatchlist(c *gin.Context) {
-	if ok := h.store.DeleteWatchlist(c.Request.Context(), userIDFromRequest(c), c.Param("id")); !ok {
+	userID := userIDFromRequest(c)
+	item, ok := h.store.DeleteWatchlist(c.Request.Context(), userID, c.Param("id"))
+	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Watchlist item not found"})
 		return
 	}
+	
+	// Send cancellation notification silently in background
+	go func() {
+		h.alerts.SendWatchlistCancellation(context.Background(), userID, item)
+	}()
+	
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
