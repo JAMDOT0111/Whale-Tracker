@@ -1,1 +1,29 @@
 @import 'tailwindcss';
+
+.news-ticker-track {
+  animation: news-ticker-scroll 72s linear infinite;
+  width: max-content;
+}
+
+.news-ticker:hover .news-ticker-track,
+.news-ticker:focus-within .news-ticker-track {
+  animation-play-state: paused;
+}
+
+@keyframes news-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .news-ticker-track {
+    animation: none;
+    flex-wrap: wrap;
+    width: auto;
+  }
+}
