@@ -160,7 +160,7 @@ func (s *AlertService) ScanWatchlists(ctx context.Context) int {
 		if threshold <= 0 {
 			threshold = 500
 		}
-		txs, err := s.etherscan.GetTransactions(item.Address, "", 50)
+		txs, err := s.etherscan.GetEthTransactions(item.Address, "", 50)
 		if err != nil {
 			log.Printf("[alerts] scan %s failed: %v", item.Address, err)
 			continue

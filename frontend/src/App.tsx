@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import AddressInput from './components/AddressInput';
 import GraphView from './components/GraphView';
@@ -54,6 +54,7 @@ function App() {
   const [sort, setSort] = useState<SortKey>('balance_desc');
   const [page, setPage] = useState(1);
   const [whales, setWhales] = useState<WhaleListResponse | null>(null);
+  const [inputAddress, setInputAddress] = useState('');
   const [selectedAddress, setSelectedAddress] = useState('');
   const [detail, setDetail] = useState<AddressDetailResponse | null>(null);
   const [summary, setSummary] = useState<AISummaryResponse | null>(null);
@@ -64,6 +65,7 @@ function App() {
   const [priceInterval, setPriceInterval] = useState('5m');
   const [prices, setPrices] = useState<PricePoint[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
+  const [selectedNewsItem, setSelectedNewsItem] = useState<NewsItem | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const [watchThreshold, setWatchThreshold] = useState(DEFAULT_WATCH_THRESHOLD);
   const [user, setUser] = useState<AppUser | null>(null);
@@ -71,37 +73,58 @@ function App() {
   const [notificationPref, setNotificationPref] = useState<NotificationPreference | null>(null);
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
+  const [graphLoading, setGraphLoading] = useState(false);
   const [testEmailLoading, setTestEmailLoading] = useState(false);
   const [error, setError] = useState('');
+  const [graphMessage, setGraphMessage] = useState('');
   const [importMessage, setImportMessage] = useState('');
   const [notificationMessage, setNotificationMessage] = useState('');
+  const thresholdRef = useRef(threshold);
+  const sortRef = useRef(sort);
+  const latestWhalesRequestId = useRef(0);
+
+  useEffect(() => {
+    thresholdRef.current = threshold;
+  }, [threshold]);
+
+  useEffect(() => {
+    sortRef.current = sort;
+  }, [sort]);
 
   const loadWhales = useCallback(
     async (nextPage = page) => {
-      setLoading(true);
+      const requestId = ++latestWhalesRequestId.current;
       setError('');
-      const normalized = parseThreshold(threshold);
+      const normalized = parseThreshold(thresholdRef.current);
       setThresholdNotice(normalized.message);
       if (normalized.message.includes('TEH')) {
-        setThreshold(`> ${normalized.value} ETH`);
+        const normalizedThreshold = `> ${normalized.value} ETH`;
+        thresholdRef.current = normalizedThreshold;
+        setThreshold(normalizedThreshold);
       }
       try {
         const resp = await listWhales({
           minBalanceEth: normalized.value,
-          sort,
+          sort: sortRef.current,
           page: nextPage,
           pageSize: PAGE_SIZE,
         });
-        setWhales(resp);
-        setPage(nextPage);
+        if (requestId === latestWhalesRequestId.current) {
+          setWhales(resp);
+          setPage(nextPage);
+          setWhaleListVersion((version) => version + 1);
+        }
       } catch (err) {
-        setError(errorMessage(err));
-      } finally {
-        setLoading(false);
+        if (requestId === latestWhalesRequestId.current) setError(errorMessage(err));
       }
     },
-    [page, sort, threshold],
+    [page],
   );
+
+  const handleUpdateWhales = useCallback(async () => {
+    await loadWhales(1);
+  }, [loadWhales]);
 
   const loadSideData = useCallback(async () => {
     const [priceResp, newsResp] = await Promise.allSettled([getETHPrices(priceInterval), getETHNews()]);
@@ -152,25 +175,44 @@ function App() {
 
   const selectAddress = useCallback(async (address: string) => {
     setSelectedAddress(address);
+    setInputAddress(address);
     setDetailLoading(true);
+    setTransactionsLoading(true);
+    setGraphLoading(true);
+    setGraphMessage('');
     setDetail(null);
     setSummary(null);
     setTransactions([]);
     setGraph(null);
     setError('');
 
-    const [detailResp, summaryResp, txResp, graphResp] = await Promise.allSettled([
+    const graphTask = withTimeout(getAddressGraph(address), 15000, '關聯圖載入逾時，請稍後再試。');
+    const [detailResp, summaryResp, txResp] = await Promise.allSettled([
       getAddressDetail(address),
       getAddressAISummary(address),
       getAddressTransactions(address),
-      getAddressGraph(address),
     ]);
+
     if (detailResp.status === 'fulfilled') setDetail(detailResp.value);
     if (summaryResp.status === 'fulfilled') setSummary(summaryResp.value);
     if (txResp.status === 'fulfilled') setTransactions(txResp.value.transactions);
-    if (graphResp.status === 'fulfilled') setGraph(graphResp.value);
     if (detailResp.status === 'rejected') setError(errorMessage(detailResp.reason));
+    if (txResp.status === 'rejected') setError(errorMessage(txResp.reason));
     setDetailLoading(false);
+    setTransactionsLoading(false);
+
+    const graphResp = await Promise.allSettled([graphTask]);
+    if (graphResp[0].status === 'fulfilled') {
+      setGraph(graphResp[0].value);
+    } else {
+      setGraphMessage(errorMessage(graphResp[0].reason));
+    }
+    setGraphLoading(false);
+  }, []);
+
+  const prefillAddress = useCallback((address: string) => {
+    setInputAddress(address);
+    setSelectedAddress(address);
   }, []);
 
   const requireGoogleLogin = useCallback((): AppUser | null => {
@@ -284,6 +326,7 @@ function App() {
   }));
 
   const selectedWhale = whales?.items.find((item) => item.address === selectedAddress);
+  const newsTickerItems = news.length > 0 ? [...news, ...news] : [];
 
   return (
     <div className="min-h-screen bg-[#171a18] text-slate-100">
@@ -315,18 +358,11 @@ function App() {
               className="mt-2 w-full rounded-lg border border-slate-700 bg-[#171a18] px-3 py-2 text-sm text-white outline-none focus:border-emerald-500"
               placeholder="> 1000 ETH"
             />
-            <div className="mt-2 flex justify-between text-xs text-slate-500">
-              <span>10k</span>
-              <span>500k</span>
-            </div>
             {thresholdNotice && <p className="mt-2 text-xs text-emerald-300">{thresholdNotice}</p>}
-            <button
-              onClick={() => loadWhales(1)}
-              disabled={loading}
-              className="mt-4 w-full rounded-lg border border-emerald-500 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50"
-            >
-              {loading ? '掃描中...' : '更新列表'}
-            </button>
+            <WhaleListUpdateButton
+              key={whaleListVersion}
+              onUpdate={handleUpdateWhales}
+            />
             <p className="mt-3 text-xs leading-5 text-slate-500">
               來源採 Etherscan Top Accounts 同步資料；若未設定 CSV URL，後端會嘗試讀取公開帳戶頁。
             </p>
@@ -407,7 +443,7 @@ function App() {
               {watchlists.slice(0, 6).map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => selectAddress(item.address)}
+                  onClick={() => prefillAddress(item.address)}
                   className="block w-full rounded-lg border border-slate-700 px-3 py-2 text-left text-xs text-slate-300 hover:border-emerald-500"
                 >
                   <span className="block font-mono">{shortAddress(item.address)}</span>
@@ -432,7 +468,7 @@ function App() {
                 <p className="text-xs text-slate-500">
                   {whales
                     ? `總數 ${whales.total.toLocaleString()} 筆 · 目前 ${visibleRange(whales)} · 快照 ${
-                        whales.snapshot_at || 'demo'
+                        formatTaiwanDateTime(whales.snapshot_at) || 'demo'
                       }`
                     : '載入中'}
                 </p>
@@ -474,7 +510,7 @@ function App() {
                     >
                       <td className="px-4 py-3 text-slate-400">{whale.rank}</td>
                       <td className="px-4 py-3">
-                        <button onClick={() => selectAddress(whale.address)} className="text-left">
+                        <button onClick={() => prefillAddress(whale.address)} className="text-left">
                           <span className="block font-mono text-slate-100">{shortAddress(whale.address)}</span>
                           {whale.name_tag && <span className="text-xs text-slate-500">{whale.name_tag}</span>}
                         </button>
@@ -541,9 +577,9 @@ function App() {
 
           <div className="rounded-lg border border-slate-700 bg-[#20231f] p-4">
             <h2 className="text-base font-semibold">單一地址搜尋</h2>
-            <p className="mt-1 text-xs text-slate-500">輸入 ETH 地址後，直接載入單一地址分析。</p>
+            <p className="mt-1 text-xs text-slate-500">輸入 ETH 地址後，按掃描載入單一地址分析。</p>
             <div className="mt-3">
-              <AddressInput onScan={selectAddress} loading={detailLoading} initialAddress={selectedAddress} />
+              <AddressInput onScan={selectAddress} onChange={setInputAddress} loading={detailLoading} value={inputAddress} />
             </div>
           </div>
 
@@ -589,6 +625,9 @@ function App() {
             graph={graph}
             selectedWhale={selectedWhale}
             loading={detailLoading}
+            transactionsLoading={transactionsLoading}
+            graphLoading={graphLoading}
+            graphMessage={graphMessage}
             onTrack={handleTrack}
           />
         </section>
@@ -601,7 +640,7 @@ function App() {
               {alerts.slice(0, 6).map((alert) => (
                 <button
                   key={alert.id}
-                  onClick={() => selectAddress(alert.address)}
+                  onClick={() => prefillAddress(alert.address)}
                   className="block w-full rounded-lg border border-slate-700 px-3 py-2 text-left hover:border-emerald-500"
                 >
                   <span className="block text-sm text-slate-100">{alert.title}</span>
@@ -613,19 +652,26 @@ function App() {
 
           <section className="rounded-lg border border-slate-700 bg-[#20231f] p-4">
             <h2 className="text-sm font-semibold text-slate-200">ETH 相關報導</h2>
-            <div className="mt-3 space-y-3">
-              {news.map((item) => (
-                <a
-                  key={item.id}
-                  href={item.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block rounded-lg border border-slate-700 px-3 py-2 hover:border-emerald-500"
-                >
-                  <span className="block text-sm text-slate-100">{item.title}</span>
-                  <span className="mt-1 block text-xs text-slate-500">{item.source}</span>
-                </a>
-              ))}
+            <div className="news-ticker mt-3 overflow-hidden rounded-lg border border-slate-700 bg-[#171a18]">
+              {newsTickerItems.length === 0 ? (
+                <p className="px-3 py-3 text-xs text-slate-500">新聞來源暫時不可用，稍後再試。</p>
+              ) : (
+                <div className="news-ticker-track flex gap-3 py-3">
+                  {newsTickerItems.map((item, index) => (
+                    <button
+                      key={`${item.id}-${index}`}
+                      type="button"
+                      onClick={() => setSelectedNewsItem(item)}
+                      className="w-72 shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-left hover:border-emerald-500 focus:border-emerald-400 focus:outline-none"
+                    >
+                      <span className="block text-sm font-medium leading-5 text-slate-100">{item.title}</span>
+                      <span className="mt-2 block text-xs text-slate-500">
+                        {item.source} · {formatNewsTime(item.published_at)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </section>
 
@@ -635,12 +681,55 @@ function App() {
               <li>Etherscan：單地址交易與餘額補查</li>
               <li>Top Accounts CSV：巨鯨種子匯入</li>
               <li>CoinGecko：ETH 價格快取</li>
-              <li>GDELT：合規新聞連結</li>
+              <li>GDELT / Cointelegraph：合規新聞連結</li>
               <li>Gmail：通知寄送，支援 dry-run</li>
             </ul>
           </section>
         </aside>
       </main>
+      {selectedNewsItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+          <button
+            type="button"
+            aria-label="關閉新聞詳情"
+            onClick={() => setSelectedNewsItem(null)}
+            className="absolute inset-0 bg-black/70"
+          />
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="news-dialog-title"
+            className="relative w-full max-w-lg rounded-lg border border-slate-700 bg-[#20231f] p-5 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs text-emerald-300">
+                  {selectedNewsItem.source} · {formatNewsTime(selectedNewsItem.published_at)}
+                </p>
+                <h2 id="news-dialog-title" className="mt-2 text-lg font-semibold leading-6 text-slate-100">
+                  {selectedNewsItem.title}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedNewsItem(null)}
+                className="rounded-lg border border-slate-600 px-2 py-1 text-xs text-slate-300 hover:border-emerald-500"
+              >
+                關閉
+              </button>
+            </div>
+            <p className="mt-4 text-sm leading-6 text-slate-300">{selectedNewsItem.snippet}</p>
+            <a
+              href={selectedNewsItem.url}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 inline-flex rounded-lg border border-emerald-500 px-4 py-2 text-sm font-medium text-emerald-200 hover:bg-emerald-500/10"
+            >
+              開啟原文
+            </a>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
@@ -652,6 +741,9 @@ function AddressDetailPanel({
   graph,
   selectedWhale,
   loading,
+  transactionsLoading,
+  graphLoading,
+  graphMessage,
   onTrack,
 }: {
   detail: AddressDetailResponse | null;
@@ -660,6 +752,9 @@ function AddressDetailPanel({
   graph: GraphResponse | null;
   selectedWhale?: WhaleAccount;
   loading: boolean;
+  transactionsLoading: boolean;
+  graphLoading: boolean;
+  graphMessage: string;
   onTrack: (address: string, alias?: string) => void;
 }) {
   if (loading) {
@@ -732,7 +827,8 @@ function AddressDetailPanel({
         <div className="rounded-lg border border-slate-700 bg-[#171a18] p-3">
           <h3 className="text-sm font-semibold text-slate-200">交易歷史</h3>
           <div className="mt-3 max-h-72 overflow-auto">
-            {transactions.length === 0 && (
+            {transactionsLoading && <p className="text-xs text-slate-500">交易資料載入中...</p>}
+            {!transactionsLoading && transactions.length === 0 && (
               <p className="text-xs text-slate-500">尚無交易資料，或 Etherscan API key 尚未設定。</p>
             )}
             {transactions.slice(0, 25).map((tx) => (
@@ -754,7 +850,9 @@ function AddressDetailPanel({
         <div className="rounded-lg border border-slate-700 bg-[#171a18] p-3">
           <h3 className="text-sm font-semibold text-slate-200">關聯圖</h3>
           <div className="mt-3 h-72">
-            {graph && graph.nodes.length > 0 ? (
+            {graphLoading ? (
+              <p className="text-xs text-slate-500">關聯圖載入中...</p>
+            ) : graph && graph.nodes.length > 0 ? (
               <GraphView
                 data={graph}
                 onNodeClick={() => undefined}
@@ -762,6 +860,8 @@ function AddressDetailPanel({
                 markedAddresses={new Set()}
                 customNames={{}}
               />
+            ) : graphMessage ? (
+              <p className="text-xs text-amber-300">{graphMessage}</p>
             ) : (
               <p className="text-xs text-slate-500">尚無圖形資料，或 Etherscan API key 尚未設定。</p>
             )}
@@ -797,6 +897,56 @@ function Metric({ label, value, hint }: { label: string; value: string; hint?: s
       <p className="mt-1 text-lg font-semibold text-slate-100">{value}</p>
       {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
     </div>
+  );
+}
+
+function WhaleListUpdateButton({ onUpdate }: { onUpdate: () => Promise<void> }) {
+  const [updating, setUpdating] = useState(false);
+  const fallbackTimerRef = useRef<number | null>(null);
+
+  const stopUpdating = useCallback(() => {
+    if (fallbackTimerRef.current !== null) {
+      window.clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = null;
+    }
+    setUpdating(false);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (fallbackTimerRef.current !== null) {
+        window.clearTimeout(fallbackTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const handleClick = useCallback(async () => {
+    setUpdating(true);
+    if (fallbackTimerRef.current !== null) {
+      window.clearTimeout(fallbackTimerRef.current);
+    }
+    fallbackTimerRef.current = window.setTimeout(() => {
+      fallbackTimerRef.current = null;
+      setUpdating(false);
+    }, 5000);
+
+    try {
+      await onUpdate();
+    } finally {
+      stopUpdating();
+    }
+  }, [onUpdate, stopUpdating]);
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={updating}
+      className="mt-4 w-full rounded-lg border border-emerald-500 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50"
+    >
+      {updating ? '掃描中...' : '更新列表'}
+    </button>
   );
 }
 
@@ -873,8 +1023,54 @@ function shortTime(raw: string, interval: string) {
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
+function formatNewsTime(raw: string) {
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleString('zh-TW', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatTaiwanDateTime(raw?: string) {
+  if (!raw) return '';
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+
+  const parts = new Intl.DateTimeFormat('zh-TW', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '';
+  return `${value('year')}/${value('month')}/${value('day')} ${value('hour')}:${value('minute')}:${value('second')}`;
+}
+
 function errorMessage(err: unknown) {
   return err instanceof Error ? err.message : '發生未知錯誤';
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+    promise
+      .then((value) => {
+        clearTimeout(timeoutId);
+        resolve(value);
+      })
+      .catch((err) => {
+        clearTimeout(timeoutId);
+        reject(err);
+      });
+  });
 }
 
 export default App;

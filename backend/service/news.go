@@ -3,10 +3,13 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"eth-sweeper/model"
 	"fmt"
+	"html"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 )
@@ -16,6 +19,13 @@ type NewsService struct {
 	mu         sync.RWMutex
 	cache      model.NewsResponse
 }
+
+const (
+	gdeltETHNewsQuery      = "ethereum cryptocurrency"
+	cointelegraphETHRSSURL = "https://cointelegraph.com/rss/tag/ethereum"
+	liveNewsCacheTTL       = 30 * time.Minute
+	unavailableNewsTTL     = 2 * time.Minute
+)
 
 func NewNewsService() *NewsService {
 	return &NewsService{
@@ -27,13 +37,16 @@ func (s *NewsService) GetETHNews(ctx context.Context) model.NewsResponse {
 	s.mu.RLock()
 	cached := s.cache
 	s.mu.RUnlock()
-	if len(cached.Items) > 0 && time.Since(parseTimeOrZero(cached.CachedAt)) < 30*time.Minute {
+	if cached.CachedAt != "" && time.Since(parseTimeOrZero(cached.CachedAt)) < newsCacheTTL(cached.Source) {
 		return cached
 	}
 
 	resp, err := s.fetchGDELT(ctx)
 	if err != nil || len(resp.Items) == 0 {
-		resp = demoNews()
+		resp, err = s.fetchCointelegraphETHRSS(ctx)
+	}
+	if err != nil || len(resp.Items) == 0 {
+		resp = unavailableNews()
 	}
 	s.mu.Lock()
 	s.cache = resp
@@ -41,9 +54,16 @@ func (s *NewsService) GetETHNews(ctx context.Context) model.NewsResponse {
 	return resp
 }
 
+func newsCacheTTL(source string) time.Duration {
+	if source == "news_sources_unavailable" {
+		return unavailableNewsTTL
+	}
+	return liveNewsCacheTTL
+}
+
 func (s *NewsService) fetchGDELT(ctx context.Context) (model.NewsResponse, error) {
 	q := url.Values{}
-	q.Set("query", "ethereum OR ETH")
+	q.Set("query", gdeltETHNewsQuery)
 	q.Set("mode", "artlist")
 	q.Set("format", "json")
 	q.Set("maxrecords", "10")
@@ -53,6 +73,7 @@ func (s *NewsService) fetchGDELT(ctx context.Context) (model.NewsResponse, error
 	if err != nil {
 		return model.NewsResponse{}, err
 	}
+	req.Header.Set("User-Agent", "ETH-Whale-Scanner/1.0")
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return model.NewsResponse{}, err
@@ -97,21 +118,63 @@ func (s *NewsService) fetchGDELT(ctx context.Context) (model.NewsResponse, error
 	return model.NewsResponse{Items: items, Source: "gdelt_doc_api", CachedAt: nowISO()}, nil
 }
 
-func demoNews() model.NewsResponse {
-	now := nowISO()
+func (s *NewsService) fetchCointelegraphETHRSS(ctx context.Context) (model.NewsResponse, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cointelegraphETHRSSURL, nil)
+	if err != nil {
+		return model.NewsResponse{}, err
+	}
+	req.Header.Set("User-Agent", "ETH-Whale-Scanner/1.0")
+	req.Header.Set("Accept", "application/rss+xml, application/xml, text/xml")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return model.NewsResponse{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return model.NewsResponse{}, fmt.Errorf("cointelegraph rss status %d", resp.StatusCode)
+	}
+
+	var feed struct {
+		Channel struct {
+			Items []struct {
+				Title   string `xml:"title"`
+				Link    string `xml:"link"`
+				PubDate string `xml:"pubDate"`
+			} `xml:"item"`
+		} `xml:"channel"`
+	}
+	if err := xml.NewDecoder(resp.Body).Decode(&feed); err != nil {
+		return model.NewsResponse{}, err
+	}
+
+	items := make([]model.NewsItem, 0, len(feed.Channel.Items))
+	for _, entry := range feed.Channel.Items {
+		title := strings.TrimSpace(html.UnescapeString(entry.Title))
+		link := strings.TrimSpace(entry.Link)
+		if title == "" || link == "" {
+			continue
+		}
+		items = append(items, model.NewsItem{
+			ID:          stableID(link),
+			Title:       title,
+			URL:         link,
+			Source:      "cointelegraph.com",
+			PublishedAt: rssTime(entry.PubDate),
+			Snippet:     "來自 Cointelegraph Ethereum RSS。請開啟原文查看完整報導。",
+		})
+		if len(items) >= 10 {
+			break
+		}
+	}
+	return model.NewsResponse{Items: items, Source: "cointelegraph_eth_rss", CachedAt: nowISO()}, nil
+}
+
+func unavailableNews() model.NewsResponse {
 	return model.NewsResponse{
-		Source:   "demo_fallback",
-		CachedAt: now,
-		Items: []model.NewsItem{
-			{
-				ID:          "demo-eth-market",
-				Title:       "ETH market monitor is waiting for live news data",
-				URL:         "https://www.gdeltproject.org/",
-				Source:      "GDELT",
-				PublishedAt: now,
-				Snippet:     "GDELT will be used as the compliant free news source when the backend can reach the internet.",
-			},
-		},
+		Items:    []model.NewsItem{},
+		Source:   "news_sources_unavailable",
+		CachedAt: nowISO(),
 	}
 }
 
@@ -120,6 +183,19 @@ func gdeltTime(raw string) string {
 		return nowISO()
 	}
 	for _, layout := range []string{"20060102150405", "20060102T150405Z", time.RFC3339} {
+		if t, err := time.Parse(layout, raw); err == nil {
+			return t.UTC().Format(time.RFC3339)
+		}
+	}
+	return raw
+}
+
+func rssTime(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nowISO()
+	}
+	for _, layout := range []string{time.RFC1123Z, time.RFC1123, time.RFC822Z, time.RFC822, time.RFC3339} {
 		if t, err := time.Parse(layout, raw); err == nil {
 			return t.UTC().Format(time.RFC3339)
 		}
