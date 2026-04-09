@@ -18,6 +18,7 @@ import {
   startGoogleOAuthLogin,
   syncWhalesFromConfiguredURL,
   upsertWatchlist,
+  deleteWatchlist,
 } from './api/client';
 import type {
   AISummaryResponse,
@@ -185,6 +186,21 @@ function App() {
     if (!activeUser) {
       return;
     }
+
+    const existing = watchlists.find((w) => w.address.toLowerCase() === address.toLowerCase());
+    if (existing) {
+      try {
+        await deleteWatchlist(existing.id);
+        setWatchlists((prev) => prev.filter((w) => w.id !== existing.id));
+        setNotificationMessage(`已取消追蹤 ${shortAddress(address)}`);
+        await loadWhales(page);
+        if (selectedAddress) await selectAddress(selectedAddress);
+      } catch (err) {
+        setError(errorMessage(err));
+      }
+      return;
+    }
+
     const normalizedThreshold = normalizeETHAmount(watchThreshold);
     if (!normalizedThreshold) {
       setError('請輸入有效的通知門檻，例如 500 或 1000。');
@@ -213,6 +229,15 @@ function App() {
       }
       await loadWhales(page);
       if (selectedAddress) await selectAddress(selectedAddress);
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  };
+
+  const handleCopy = async (address: string) => {
+    try {
+      await navigator.clipboard.writeText(address);
+      setNotificationMessage(`已複製地址：${shortAddress(address)}`);
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -413,8 +438,7 @@ function App() {
               >
                 <option value="balance_desc">餘額排序</option>
                 <option value="balance_asc">餘額由低到高</option>
-                <option value="rank_asc">排名由前到後</option>
-                <option value="rank_desc">排名由後到前</option>
+                <option value="tracked">追蹤中名單</option>
               </select>
             </div>
 
@@ -422,7 +446,6 @@ function App() {
               <table className="w-full min-w-[760px] text-left text-sm">
                 <thead className="border-b border-slate-700 text-xs text-slate-500">
                   <tr>
-                    <th className="px-4 py-3">#</th>
                     <th className="px-4 py-3">地址</th>
                     <th className="px-4 py-3">ETH 餘額</th>
                     <th className="px-4 py-3">持有佔比</th>
@@ -438,12 +461,19 @@ function App() {
                         selectedAddress === whale.address ? 'bg-emerald-500/5' : ''
                       }`}
                     >
-                      <td className="px-4 py-3 text-slate-400">{whale.rank}</td>
                       <td className="px-4 py-3">
-                        <button onClick={() => selectAddress(whale.address)} className="text-left">
-                          <span className="block font-mono text-slate-100">{shortAddress(whale.address)}</span>
-                          {whale.name_tag && <span className="text-xs text-slate-500">{whale.name_tag}</span>}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => selectAddress(whale.address)} className="text-left font-mono text-slate-100 hover:text-emerald-300 transition-colors">
+                            {shortAddress(whale.address)}
+                          </button>
+                          <button onClick={() => handleCopy(whale.address)} className="text-slate-500 hover:text-emerald-400 transition-colors" title="複製地址">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path>
+                            </svg>
+                          </button>
+                        </div>
+                        {whale.name_tag && <div className="mt-1 text-xs text-slate-500">{whale.name_tag}</div>}
                       </td>
                       <td className="px-4 py-3 font-semibold">{formatETH(whale.balance_eth)} ETH</td>
                       <td className="px-4 py-3">
