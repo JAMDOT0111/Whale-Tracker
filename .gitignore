@@ -19,3 +19,7 @@ frontend/dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local whale / Etherscan import dumps (not for repo)
+merged_sorted_by_balance.csv
+merged_sorted_by_balance_clean_full.csv
