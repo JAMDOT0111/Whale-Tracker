@@ -112,7 +112,6 @@ func addValues(a, b string) string {
 }
 
 func parseFloatSafe(s string) float64 {
-	var f float64
-	fmt.Sscanf(s, "%f", &f)
+	f, _ := strconv.ParseFloat(strings.TrimSpace(s), 64)
 	return f
 }

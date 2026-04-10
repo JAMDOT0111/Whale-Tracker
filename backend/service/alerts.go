@@ -2,9 +2,13 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"eth-sweeper/model"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -42,7 +46,7 @@ func (s *AlertService) SendTestNotification(ctx context.Context, userID string, 
 		Address:      "0x00000000219ab540356cbb839cbe05303d7705fa",
 		Type:         "test_notification",
 		Severity:     "info",
-		ThresholdETH: "500",
+		ThresholdETH: "0 (test mail)",
 		Title:        "Test notification",
 		Description:  "This is a real delivery test from ETH Whale Scanner.",
 		Evidence: []model.Evidence{{
@@ -59,6 +63,13 @@ func (s *AlertService) SendTestNotification(ctx context.Context, userID string, 
 		CreatedAt:  now,
 	}
 	msgID, err := s.notify.SendAlert(ctx, email, alert, s.store.GetGmailToken(ctx, userID))
+	if err != nil && strings.Contains(err.Error(), "gmail status 401") {
+		if newToken, refreshedErr := s.refreshGmailToken(ctx, userID); refreshedErr == nil {
+			msgID, err = s.notify.SendAlert(ctx, email, alert, newToken)
+		} else {
+			log.Printf("[alerts] failed to refresh token for user %s: %v", userID, refreshedErr)
+		}
+	}
 	logEntry := model.NotificationLog{
 		ID:       stableID(alert.ID + ":notification"),
 		AlertID:  alert.ID,
@@ -95,19 +106,78 @@ func (s *AlertService) SendWatchlistConfirmation(ctx context.Context, userID str
 		Type:         "watchlist_confirmation",
 		Severity:     "info",
 		ThresholdETH: item.MinInteractionETH,
-		Title:        "Watchlist enabled",
-		Description:  fmt.Sprintf("Now watching %s. Alerts will be sent when ETH interactions exceed %s ETH.", labelOrAddress(item), item.MinInteractionETH),
+		Title:        "設定成功：地址異動監控",
+		Description:  fmt.Sprintf("您已成功將 %s 加入追蹤名單，若交易金額大於 %s ETH 將會寄發通知。", labelOrAddress(item), item.MinInteractionETH),
 		Evidence: []model.Evidence{{
 			Asset:     "ETH",
 			ValueETH:  item.MinInteractionETH,
 			Timestamp: now,
-			Reason:    "Watchlist confirmation",
+			Reason:    "成功加入追蹤",
 		}},
 		Labels:     item.Labels,
 		Confidence: 1,
 		Heuristic:  true,
 		Status:     "open",
 		DedupeKey:  "watch-confirm:" + userID + ":" + item.Address + ":" + item.MinInteractionETH + ":" + now,
+		CreatedAt:  now,
+	}
+	msgID, err := s.notify.SendAlert(ctx, email, alert, s.store.GetGmailToken(ctx, userID))
+	if err != nil && strings.Contains(err.Error(), "gmail status 401") {
+		if newToken, refreshedErr := s.refreshGmailToken(ctx, userID); refreshedErr == nil {
+			msgID, err = s.notify.SendAlert(ctx, email, alert, newToken)
+		} else {
+			log.Printf("[alerts] failed to refresh token for user %s: %v", userID, refreshedErr)
+		}
+	}
+	logEntry := model.NotificationLog{
+		ID:       stableID(alert.ID + ":notification"),
+		AlertID:  alert.ID,
+		UserID:   userID,
+		Channel:  "gmail",
+		Status:   "sent",
+		Attempts: 1,
+	}
+	if err != nil {
+		logEntry.Status = "failed"
+		logEntry.Error = err.Error()
+		logEntry.NextRetryAt = nextRetryTime(1)
+		s.store.AddNotificationLog(ctx, logEntry)
+		return logEntry, err
+	}
+	logEntry.ProviderMessageID = msgID
+	s.store.AddNotificationLog(ctx, logEntry)
+	return logEntry, nil
+}
+
+func (s *AlertService) SendWatchlistCancellation(ctx context.Context, userID string, item model.WatchlistItem) (model.NotificationLog, error) {
+	pref := s.store.GetPreference(ctx, userID)
+	email := pref.Email
+	if email == "" {
+		if user, ok := s.store.GetUser(ctx, userID); ok {
+			email = user.Email
+		}
+	}
+	now := nowISO()
+	alert := model.AlertEvent{
+		ID:           "watch-cancel-" + stableID(userID+":"+item.Address+":"+now),
+		UserID:       userID,
+		Address:      item.Address,
+		Type:         "watchlist_cancellation",
+		Severity:     "info",
+		ThresholdETH: "0 (已取消追蹤)",
+		Title:        "Watchlist disabled",
+		Description:  fmt.Sprintf("You are no longer watching %s. Alerts for this address have been stopped.", labelOrAddress(item)),
+		Evidence: []model.Evidence{{
+			Asset:     "ETH",
+			ValueETH:  "0",
+			Timestamp: now,
+			Reason:    "Watchlist cancellation",
+		}},
+		Labels:     item.Labels,
+		Confidence: 1,
+		Heuristic:  true,
+		Status:     "open",
+		DedupeKey:  "watch-cancel:" + userID + ":" + item.Address + ":" + now,
 		CreatedAt:  now,
 	}
 	msgID, err := s.notify.SendAlert(ctx, email, alert, s.store.GetGmailToken(ctx, userID))
@@ -142,7 +212,7 @@ func (s *AlertService) ScanWatchlists(ctx context.Context) int {
 		if threshold <= 0 {
 			threshold = 500
 		}
-		txs, err := s.etherscan.GetTransactions(item.Address, "", 50)
+		txs, err := s.etherscan.GetEthTransactions(item.Address, "", 50)
 		if err != nil {
 			log.Printf("[alerts] scan %s failed: %v", item.Address, err)
 			continue
@@ -212,6 +282,15 @@ func (s *AlertService) sendAlert(ctx context.Context, alert model.AlertEvent) {
 		}
 	}
 	msgID, err := s.notify.SendAlert(ctx, email, alert, s.store.GetGmailToken(ctx, alert.UserID))
+	
+	if err != nil && strings.Contains(err.Error(), "gmail status 401") {
+		if newToken, refreshedErr := s.refreshGmailToken(ctx, alert.UserID); refreshedErr == nil {
+			msgID, err = s.notify.SendAlert(ctx, email, alert, newToken)
+		} else {
+			log.Printf("[alerts] failed to refresh token for user %s: %v", alert.UserID, refreshedErr)
+		}
+	}
+
 	logEntry := model.NotificationLog{
 		AlertID:  alert.ID,
 		UserID:   alert.UserID,
@@ -249,6 +328,69 @@ func (s *AlertService) StartScheduler(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+func (s *AlertService) refreshGmailToken(ctx context.Context, userID string) (model.GmailToken, error) {
+	currentToken := s.store.GetGmailToken(ctx, userID)
+	if currentToken.RefreshToken == "" {
+		return currentToken, fmt.Errorf("no refresh token available")
+	}
+
+	clientID := strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_CLIENT_ID"))
+	clientSecret := strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET"))
+	if clientID == "" || clientSecret == "" {
+		return currentToken, fmt.Errorf("google oauth credentials missing")
+	}
+
+	form := url.Values{}
+	form.Set("client_id", clientID)
+	form.Set("client_secret", clientSecret)
+	form.Set("refresh_token", currentToken.RefreshToken)
+	form.Set("grant_type", "refresh_token")
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://oauth2.googleapis.com/token", strings.NewReader(form.Encode()))
+	if err != nil {
+		return currentToken, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return currentToken, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return currentToken, fmt.Errorf("failed to refresh token: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	var out struct {
+		AccessToken string `json:"access_token"`
+		ExpiresIn   int    `json:"expires_in"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return currentToken, err
+	}
+
+	expiry := ""
+	if out.ExpiresIn > 0 {
+		expiry = time.Now().UTC().Add(time.Duration(out.ExpiresIn) * time.Second).Format(time.RFC3339)
+	}
+
+	// Wait, I need a trick to update AppStore tokens without altering UpsertUser.
+	// Oh, UpsertUser accepts GoogleLoginRequest and will update the token if AccessToken is present.
+	if user, ok := s.store.GetUser(ctx, userID); ok {
+		s.store.UpsertUser(ctx, model.GoogleLoginRequest{
+			Email:             user.Email,
+			Name:              user.Name,
+			AvatarURL:         user.AvatarURL,
+			GmailAccessToken:  out.AccessToken,
+			GmailRefreshToken: currentToken.RefreshToken, // preserve the existing one
+			GmailTokenExpiry:  expiry,
+		})
+	}
+	return s.store.GetGmailToken(ctx, userID), nil
 }
 
 func configuredWatchlistScanInterval() time.Duration {

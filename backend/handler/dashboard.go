@@ -205,6 +205,44 @@ func (h *Handler) GetAddressDetail(c *gin.Context) {
 		whalePtr = &whale
 	}
 	labels := h.store.LabelsForAddress(c.Request.Context(), address)
+	
+	// Add background ML prediction (this gets up to 10k transactions and processes features)
+	go func() {
+		// Just for fetching to cache - if wait is acceptable we can block here or let frontend refresh later
+		// Since we want it next to the "Whale", let's block or wait lightly. 
+		// Actually, let's just do it synchronously for now to ensure the UI gets it instantly
+	}()
+
+	normal, internal, token, _ := h.etherscan.GetAllTxsForPrediction(address)
+	balanceStr := "0"
+	if balance != nil {
+		balanceStr = balance.EthBalance
+	}
+	prediction, err := service.PredictAddressFraud(address, normal, internal, token, balanceStr)
+	if err != nil {
+		fmt.Printf("PredictAddressFraud error: %v\n", err)
+	}
+
+	if prediction != nil {
+		if prediction.IsFraud {
+			labels = append(labels, model.AddressLabelResult{
+				Category:   "scam",
+				Name:       "Scam",
+				Source:     "ml_model",
+				Confidence: prediction.Confidence,
+				Heuristic:  true,
+			})
+		} else {
+			labels = append(labels, model.AddressLabelResult{
+				Category:   "safe",
+				Name:       "Safe",
+				Source:     "ml_model",
+				Confidence: prediction.Confidence,
+				Heuristic:  true,
+			})
+		}
+	}
+
 	isTracked := false
 	for _, item := range h.store.ListWatchlists(c.Request.Context(), userIDFromRequest(c)) {
 		if strings.EqualFold(item.Address, address) {
@@ -334,10 +372,18 @@ func (h *Handler) UpsertWatchlistWithConfirmation(c *gin.Context) {
 }
 
 func (h *Handler) DeleteWatchlist(c *gin.Context) {
-	if ok := h.store.DeleteWatchlist(c.Request.Context(), userIDFromRequest(c), c.Param("id")); !ok {
+	userID := userIDFromRequest(c)
+	item, ok := h.store.DeleteWatchlist(c.Request.Context(), userID, c.Param("id"))
+	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Watchlist item not found"})
 		return
 	}
+	
+	// Send cancellation notification silently in background
+	go func() {
+		h.alerts.SendWatchlistCancellation(context.Background(), userID, item)
+	}()
+	
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 

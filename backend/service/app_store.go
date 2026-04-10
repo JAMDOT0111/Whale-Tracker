@@ -23,8 +23,9 @@ type AppStore struct {
 	preferences   map[string]model.NotificationPreference
 	whales        map[string]model.WhaleAccount
 	watchlists    map[string]model.WatchlistItem
-	alerts        map[string]model.AlertEvent
-	notifications map[string]model.NotificationLog
+	alerts          map[string]model.AlertEvent
+	alertDedupeKeys map[string]string
+	notifications   map[string]model.NotificationLog
 	snapshotAt    string
 }
 
@@ -34,9 +35,10 @@ func NewAppStore() *AppStore {
 		gmailTokens:   map[string]model.GmailToken{},
 		preferences:   map[string]model.NotificationPreference{},
 		whales:        map[string]model.WhaleAccount{},
-		watchlists:    map[string]model.WatchlistItem{},
-		alerts:        map[string]model.AlertEvent{},
-		notifications: map[string]model.NotificationLog{},
+		watchlists:      map[string]model.WatchlistItem{},
+		alerts:          map[string]model.AlertEvent{},
+		alertDedupeKeys: map[string]string{},
+		notifications:   map[string]model.NotificationLog{},
 	}
 	if strings.EqualFold(os.Getenv("ENABLE_DEMO_DATA"), "true") {
 		store.seedDemoWhales()
@@ -161,11 +163,14 @@ func (s *AppStore) ListWhales(_ context.Context, minBalance float64, sortKey str
 	tracked := s.trackedAddressesLocked(userID)
 	items := make([]model.WhaleAccount, 0, len(s.whales))
 	for _, whale := range s.whales {
+		whale.IsTracked = tracked[whale.Address]
+		if sortKey == "tracked" && !whale.IsTracked {
+			continue
+		}
 		bal := parseFloatSafe(whale.BalanceETH)
 		if minBalance > 0 && bal < minBalance {
 			continue
 		}
-		whale.IsTracked = tracked[whale.Address]
 		items = append(items, whale)
 	}
 
@@ -173,10 +178,6 @@ func (s *AppStore) ListWhales(_ context.Context, minBalance float64, sortKey str
 		switch sortKey {
 		case "balance_asc":
 			return parseFloatSafe(items[i].BalanceETH) < parseFloatSafe(items[j].BalanceETH)
-		case "rank_desc":
-			return items[i].Rank > items[j].Rank
-		case "rank_asc":
-			return items[i].Rank < items[j].Rank
 		default:
 			return parseFloatSafe(items[i].BalanceETH) > parseFloatSafe(items[j].BalanceETH)
 		}
@@ -274,7 +275,7 @@ func (s *AppStore) ListWatchlists(_ context.Context, userID string) []model.Watc
 	return items
 }
 
-func (s *AppStore) DeleteWatchlist(_ context.Context, userID, id string) bool {
+func (s *AppStore) DeleteWatchlist(_ context.Context, userID, id string) (model.WatchlistItem, bool) {
 	if userID == "" {
 		userID = anonymousUserID
 	}
@@ -283,10 +284,10 @@ func (s *AppStore) DeleteWatchlist(_ context.Context, userID, id string) bool {
 
 	item, ok := s.watchlists[id]
 	if !ok || item.UserID != userID {
-		return false
+		return model.WatchlistItem{}, false
 	}
 	delete(s.watchlists, id)
-	return true
+	return item, true
 }
 
 func (s *AppStore) UpsertPreference(_ context.Context, userID string, pref model.NotificationPreference) model.NotificationPreference {
@@ -340,12 +341,15 @@ func (s *AppStore) CreateAlert(_ context.Context, alert model.AlertEvent) (model
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, existing := range s.alerts {
-		if existing.DedupeKey == alert.DedupeKey {
-			return existing, false
+	
+	if existingID, exists := s.alertDedupeKeys[alert.DedupeKey]; exists {
+		if existingAlert, ok := s.alerts[existingID]; ok {
+			return existingAlert, false
 		}
 	}
+	
 	s.alerts[alert.ID] = alert
+	s.alertDedupeKeys[alert.DedupeKey] = alert.ID
 	return alert, true
 }
 

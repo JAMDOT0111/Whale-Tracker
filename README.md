@@ -30,16 +30,20 @@ ETH whale and smart-money tracking prototype for public on-chain analysis and Gm
 cp backend/.env.sample backend/.env
 # Edit backend/.env and fill in local API/OAuth credentials
 
-# 2. Start backend
+# 2. Setup AI Prediction Model (Optional but recommended)
+# Installs Python virtual environment and XGBoost dependencies locally
 cd backend
+.\setup_ml.ps1
+
+# 3. Start backend
 go run main.go
 
-# 3. Start frontend in another terminal
+# 4. Start frontend in another terminal
 cd frontend
 npm install
 npm run dev
 
-# 4. Open the app
+# 5. Open the app
 # http://localhost:5173
 ```
 
@@ -47,7 +51,7 @@ npm run dev
 
 ```env
 ETHERSCAN_API_KEY=
-ETHERSCAN_TOP_ACCOUNTS_PAGES=20
+ETHERSCAN_TOP_ACCOUNTS_PAGES=400
 AUTO_IMPORT_WHALES_ON_START=true
 ENABLE_DEMO_DATA=false
 GOOGLE_OAUTH_CLIENT_ID=

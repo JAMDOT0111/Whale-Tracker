@@ -1,169 +1,184 @@
-# ETH Sweeper — 實作進度
+# ETH Sweeper ??撖虫??脣漲
 
-## 已完成功能
+## 撌脣?????
 
-### 後端 (Go + Gin)
-- [x] Etherscan API V2 封裝（4 種交易類型、分頁、快取）
-- [x] 滑動視窗 Rate Limiter（3 req/sec）+ 自動 Retry
-- [x] 交易掃描 API（POST /api/scan）
-- [x] 單層圖建構 API（POST /api/graph）
-- [x] 餘額查詢 API（POST /api/balance）
-- [x] 合約地址檢測（eth_getCode）
-- [x] 已知地址標籤（60+ 交易所/跨鏈橋）
-- [x] .env 環境變數管理（godotenv）
+### 敺垢 (Go + Gin)
+- [x] Etherscan API V2 撠?嚗? 蝔桐漱?????翰??
+- [x] 皛?閬? Rate Limiter嚗? req/sec嚗? ?芸? Retry
+- [x] 鈭斗??? API嚗OST /api/scan嚗?
+- [x] ?桀惜?遣瑽?API嚗OST /api/graph嚗?
+- [x] 擗??亥岷 API嚗OST /api/balance嚗?
+- [x] ???啣?瑼Ｘ葫嚗th_getCode嚗?
+- [x] 撌脩?啣?璅惜嚗?0+ 鈭斗??/頝券?璈?
+- [x] .env ?啣?霈蝞∠?嚗odotenv嚗?
 
-### 前端 (React + Vite + TypeScript)
-- [x] 地址輸入與驗證
-- [x] Cytoscape.js 互動式關係圖（力導向佈局）
-- [x] 節點視覺區分（EOA/合約/交易所/跨鏈橋/已標記）
-- [x] 右鍵選單（標記/命名/篩選交易/Etherscan 連結）
-- [x] 右側滑出交易面板（類型篩選、對手地址篩選）
-- [x] ETH 餘額 + 代幣持倉卡片
-- [x] Recharts 交易時間軸
-- [x] D3-Sankey 資金流向圖
-- [x] 搜尋紀錄（localStorage）
-- [x] 標記 + 命名持久化（localStorage）
-- [x] URL 歷史（瀏覽器上一頁/下一頁）
-- [x] 圖的局部更新（標記/命名不重建圖）
+### ?垢 (React + Vite + TypeScript)
+- [x] ?啣?頛詨??霅?
+- [x] Cytoscape.js 鈭?撘?靽?嚗?撠?雿?嚗?
+- [x] 蝭暺?閬箏???EOA/??/鈭斗??/頝券?璈?撌脫?閮?
+- [x] ?喲?詨嚗?閮??賢?/蝭拚鈭斗?/Etherscan ???嚗?
+- [x] ?喳皛鈭斗??Ｘ嚗??祟?詻???蝭拚嚗?
+- [x] ETH 擗? + 隞?馳???
+- [x] Recharts 鈭斗???頠?
+- [x] D3-Sankey 鞈?瘚???
+- [x] ??蝝??localStorage嚗?
+- [x] 璅? + ?賢?????localStorage嚗?
+- [x] URL 甇瑕嚗汗?其?銝??銝???
+- [x] ??撅?冽?堆?璅?/?賢?銝?撱箏?嚗?
 
-### 基建
-- [x] Docker 打包（docker-compose）
-- [x] 技術文件（DOCS.md）
+### ?箏遣
+- [x] Docker ??嚗ocker-compose嚗?
+- [x] ?銵?隞塚?DOCS.md嚗?
 
 ---
 
-## 待實作功能（Stub 已建立）
+## 敺祕雿??踝?Stub 撌脣遣蝡?
 
-以下功能的 API 接口已定義在 `handler/scan.go`，前端 client 已定義在 `api/client.ts`，
-目前回傳 501 Not Implemented。
+隞乩????API ?亙撌脣?蝢拙 `handler/scan.go`嚗?蝡?client 撌脣?蝢拙 `api/client.ts`嚗?
+?桀?? 501 Not Implemented??
 
-### 🟡 中等難度
+### ? 銝剔???漲
 
-#### ENS 名稱解析
+#### ENS ?迂閫??
 - **API**: `POST /api/resolve-ens`
-- **後端**: 呼叫 Etherscan `proxy/eth_call` 或第三方 ENS API，將 `vitalik.eth` 解析為 `0xd8dA...`
-- **前端**: 輸入框支援 ENS 名稱；圖上節點顯示 ENS 名稱
-- **參考**: [ENS Docs](https://docs.ens.domains/)
+- **敺垢**: ?澆 Etherscan `proxy/eth_call` ?洵銝 ENS API嚗? `vitalik.eth` 閫????`0xd8dA...`
+- **?垢**: 頛詨獢??ENS ?迂嚗?銝?暺＊蝷?ENS ?迂
+- **??*: [ENS Docs](https://docs.ens.domains/)
 
-#### CSV 匯出
+#### CSV ?臬
 - **API**: `POST /api/export`
-- **後端**: 取得交易後轉為 CSV，回傳 `Content-Type: text/csv`
-- **前端**: 交易面板加「匯出 CSV」按鈕，觸發下載
-- **欄位**: hash, from, to, value, asset, category, timestamp
+- **敺垢**: ??鈭斗?敺???CSV嚗???`Content-Type: text/csv`
+- **?垢**: 鈭斗??Ｘ???CSV????閫貊銝?
+- **甈?**: hash, from, to, value, asset, category, timestamp
 
-#### Gas 使用分析
+#### Gas 雿輻??
 - **API**: `POST /api/gas-analytics`
-- **後端**: 在 `EtherscanNormalTx` 加入 `gasUsed`, `gasPrice` 欄位，統計：
-  - 總 gas 花費（ETH）
-  - 平均每筆 gas
-  - 最高 gas 的交易
-  - 按月分組統計
-- **前端**: 新增 `GasAnalytics.tsx` 元件，用 Recharts 畫 gas 趨勢圖
+- **敺垢**: ??`EtherscanNormalTx` ? `gasUsed`, `gasPrice` 甈?嚗絞閮?
+  - 蝮?gas ?梯祥嚗TH嚗?
+  - 撟喳?瘥? gas
+  - ?擃?gas ?漱??
+  - ????蝯梯?
+- **?垢**: ?啣? `GasAnalytics.tsx` ?辣嚗 Recharts ??gas 頞典??
 
-### 🟠 較高難度
+### ?? 頛???漲
 
-#### 代幣授權檢查
+#### 隞?馳??瑼Ｘ
 - **API**: `POST /api/token-approvals`
-- **後端**: 查詢 ERC-20 的 `Approve` 事件 log，列出：
-  - 被授權的合約地址
-  - 授權的代幣
-  - 授權額度（unlimited 或具體金額）
-- **前端**: 新增 `TokenApprovals.tsx`，列表顯示，標記風險高的無限授權
-- **參考**: Etherscan Event Log API
+- **敺垢**: ?亥岷 ERC-20 ??`Approve` 鈭辣 log嚗??綽?
+  - 鋡急?甈????啣?
+  - ???誨撟?
+  - ??憿漲嚗nlimited ?擃?憿?
+- **?垢**: ?啣? `TokenApprovals.tsx`嚗?銵券＊蝷綽?璅?憸券擃??⊿???
+- **??*: Etherscan Event Log API
 
-#### 合約互動解碼
+#### ??鈭?閫?Ⅳ
 - **API**: `POST /api/contract-decode`
-- **後端**: 取得交易的 input data，用 ABI 或 4byte 資料庫解碼函式名稱和參數
-- **前端**: 交易面板中顯示解碼後的函式名稱（如 `swap(uint256, address[])`）
-- **參考**: [4byte.directory](https://www.4byte.directory/)
+- **敺垢**: ??鈭斗???input data嚗 ABI ??4byte 鞈?摨怨圾蝣澆撘?蝔勗??
+- **?垢**: 鈭斗??Ｘ銝剝＊蝷箄圾蝣澆??撘?蝔梧?憒?`swap(uint256, address[])`嚗?
+- **??*: [4byte.directory](https://www.4byte.directory/)
 
-### 🔴 高難度
+### ? 擃摨?
 
-#### 地址風險評分
+#### ?啣?憸券閰?
 - **API**: `POST /api/risk-score`
-- **後端**: 根據多個因素計算 0-100 風險分數：
-  - 是否與混幣器互動（Tornado Cash 地址清單）
-  - 交易頻率異常度
-  - 是否與已知詐騙地址互動
-  - 帳戶年齡和活躍度
-- **前端**: 新增 `RiskScore.tsx`，顯示分數儀表板和風險因素細項
-- **注意**: 需要維護混幣器/詐騙地址清單
+- **敺垢**: ?寞?憭?蝝?蝞?0-100 憸券?嚗?
+  - ?臬?毽撟?鈭?嚗ornado Cash ?啣?皜嚗?
+  - 鈭斗??餌??啣虜摨?
+  - ?臬?歇?亥?擉?鈭?
+  - 撣單撟湧翩?暑頨漲
+- **?垢**: ?啣? `RiskScore.tsx`嚗＊蝷箏??詨?銵冽?◢?芸?蝝敦??
+- **瘜冽?**: ?閬雁霅瑟毽撟?/閰??啣?皜
 
-#### 多鏈支援
-- **後端**: `chainid` 參數化，支援 Polygon (137)、Arbitrum (42161)、Optimism (10) 等
-- **前端**: 加鏈切換下拉選單
-- **注意**: labels.go 的地址清單需要按鏈區分
+#### 憭??舀
+- **敺垢**: `chainid` ????舀 Polygon (137)?rbitrum (42161)?ptimism (10) 蝑?
+- **?垢**: ????銝??詨
+- **瘜冽?**: labels.go ??皜?閬?????
 
-#### 即時交易監控（WebSocket）
-- **後端**: 新增 WebSocket endpoint，用 Etherscan 或 Alchemy 的 pending tx stream
-- **前端**: 即時更新圖和交易列表
-- **注意**: 架構改動較大，需要 goroutine 管理
+#### ?單?鈭斗???嚗ebSocket嚗?
+- **敺垢**: ?啣? WebSocket endpoint嚗 Etherscan ??Alchemy ??pending tx stream
+- **?垢**: ?單??湔??鈭斗??”
+- **瘜冽?**: ?嗆??孵?頛之嚗?閬?goroutine 蝞∠?
 
-### 🟡 基礎建設
+### ? ?箇?撱箄身
 
-#### MongoDB 整合
-- **後端**: 安裝 `go.mongodb.org/mongo-driver`，建立 `db/mongo.go` 連線模組
-- **集合設計**:
-  - `users` — 使用者帳號資料
-  - `marks` — 使用者標記的地址（by user_id）
-  - `names` — 使用者自訂地址名稱（by user_id）
-  - `history` — 搜尋紀錄（by user_id）
-  - `labels` — 自訂標籤（可擴充 labels.go 的硬編碼清單）
-  - `tx_cache` — 交易快取（避免重複 API 呼叫，設 TTL）
-- **Docker**: `docker-compose.yml` 加入 MongoDB 服務
-- **.env**: 加入 `MONGO_URI=mongodb://localhost:27017/eth-sweeper`
+#### MongoDB ?游?
+- **敺垢**: 摰? `go.mongodb.org/mongo-driver`嚗遣蝡?`db/mongo.go` ???璅∠?
+- **??閮剛?**:
+  - `users` ??雿輻?董????
+  - `marks` ??雿輻??閮??啣?嚗y user_id嚗?
+  - `names` ??雿輻?閮??迂嚗y user_id嚗?
+  - `history` ????蝝??by user_id嚗?
+  - `labels` ???芾?璅惜嚗?游? labels.go ?′蝺函Ⅳ皜嚗?
+  - `tx_cache` ??鈭斗?敹怠?嚗??銴?API ?澆嚗身 TTL嚗?
+- **Docker**: `docker-compose.yml` ? MongoDB ??
+- **.env**: ? `MONGO_URI=mongodb://localhost:27017/eth-sweeper`
 
-#### JWT 使用者登入/註冊
+#### JWT 雿輻???閮餃?
 - **API**:
-  - `POST /api/auth/register` — 帳號密碼註冊（密碼用 bcrypt 雜湊）
-  - `POST /api/auth/login` — 登入，回傳 JWT token
-  - `GET /api/auth/me` — 用 token 取得當前使用者資訊
-- **後端**: 新增 `handler/auth.go`、`service/auth.go`、`middleware/jwt.go`
-- **前端**: 新增登入/註冊頁面、token 存 localStorage、API 請求帶 Authorization header
-- **套件**: `golang-jwt/jwt/v5`、`golang.org/x/crypto/bcrypt`
+  - `POST /api/auth/register` ??撣唾?撖Ⅳ閮餃?嚗?蝣潛 bcrypt ??嚗?
+  - `POST /api/auth/login` ???餃嚗???JWT token
+  - `GET /api/auth/me` ????token ???嗅?雿輻??閮?
+- **敺垢**: ?啣? `handler/auth.go`?service/auth.go`?middleware/jwt.go`
+- **?垢**: ?啣??餃/閮餃???oken 摮?localStorage?PI 隢?撣?Authorization header
+- **憟辣**: `golang-jwt/jwt/v5`?golang.org/x/crypto/bcrypt`
 
-#### 使用者資料持久化
-- **後端**: 需要登入的 API 加上 JWT middleware
-  - `GET /api/user/marks` — 取得該使用者的標記
-  - `POST /api/user/marks` — 新增/移除標記
-  - `GET /api/user/names` — 取得自訂名稱
-  - `POST /api/user/names` — 設定名稱
-  - `GET /api/user/history` — 取得搜尋紀錄
-- **前端**: 登入後從後端載入資料，取代 localStorage；未登入時 fallback 到 localStorage
-
----
-
-## 教學建議實作順序
-
-1. **MongoDB 整合** — 學資料庫連線、集合設計
-2. **JWT 登入/註冊** — 學認證機制、middleware
-3. **使用者資料持久化** — 學 CRUD + 權限控制
-4. **ENS 名稱解析** — 學 API 整合
-5. **CSV 匯出** — 學 HTTP response 格式、前端檔案下載
-6. **Gas 分析** — 學資料聚合 + 圖表
-7. **代幣授權** — 學 Event Log 解析
-8. **合約解碼** — 學 ABI 解碼
-9. **風險評分** — 學評分模型設計
-10. **多鏈支援** — 學架構重構
-11. **即時監控** — 學 WebSocket
-12. **雲端部署** — 學 CI/CD + 雲端服務（Cloudflare Pages + Railway + MongoDB Atlas）
+#### 雿輻????銋?
+- **敺垢**: ?閬?亦? API ?? JWT middleware
+  - `GET /api/user/marks` ????閰脖蝙?刻?璅?
+  - `POST /api/user/marks` ???啣?/蝘駁璅?
+  - `GET /api/user/names` ?????芾??迂
+  - `POST /api/user/names` ??閮剖??迂
+  - `GET /api/user/history` ??????蝝??
+- **?垢**: ?餃敺?敺垢頛鞈?嚗?隞?localStorage嚗?餃??fallback ??localStorage
 
 ---
 
-## 本次任務：改為單一地址輸入搜尋分析
+## ?飛撱箄降撖虫???
 
-- [x] 在詳情區上方加入地址輸入框（沿用既有元件）
-- [x] 輸入有效地址後呼叫單地址查詢分析流程
-- [x] 保留原本清單點選地址功能
-- [x] 調整空狀態提示文案為輸入導向
-- [ ] 前端 lint 檢查（本機環境找不到 npm 指令，待你本機重跑）
+1. **MongoDB ?游?** ??摮貉??澈??????身閮?
+2. **JWT ?餃/閮餃?** ??摮貉?霅??嗚iddleware
+3. **雿輻????銋?** ??摮?CRUD + 甈??批
+4. **ENS ?迂閫??** ??摮?API ?游?
+5. **CSV ?臬** ??摮?HTTP response ?澆???蝡舀?獢?頛?
+6. **Gas ??** ??摮貉?????+ ?”
+7. **隞?馳??** ??摮?Event Log 閫??
+8. **??閫?Ⅳ** ??摮?ABI 閫?Ⅳ
+9. **憸券閰?** ??摮貉??芋?身閮?
+10. **憭??舀** ??摮豢瑽?瑽?
+11. **?單???** ??摮?WebSocket
+12. **?脩垢?函蔡** ??摮?CI/CD + ?脩垢??嚗loudflare Pages + Railway + MongoDB Atlas嚗?
 
 ---
 
-## 本次任務：重要人物相關新聞
+## ?祆活隞餃?嚗?箏銝?啣?頛詨????
 
-- [x] 新增後端 Google News RSS 服務，抓取 Vitalik / Trump 加密貨幣相關新聞
-- [x] 新增 `/api/news/crypto-figures` endpoint，來源失敗或無結果時回傳真實空狀態
-- [x] 前端在「ETH 相關報導」下方新增「重要人物相關新聞」區塊
-- [x] 更新 README / IMPLEMENTATION 說明與資料來源
-- [x] 執行後端測試與前端 build/lint
+- [x] ?刻底??銝??啣?頛詨獢?瘝輻?Ｘ??辣嚗?
+- [x] 頛詨???啣?敺?怠?啣??亥岷??瘚?
+- [x] 靽??皜暺?啣??
+- [x] 隤踵蝛箇???蝷箸?獢頛詨撠?
+- [ ] ?垢 lint 瑼Ｘ嚗璈憓銝 npm ?誘嚗?雿璈?頝?
+
+---
+
+## ?祆活隞餃?嚗?閬犖?拍???
+
+- [x] ?啣?敺垢 Google News RSS ??嚗???Vitalik / Trump ??鞎典馳?賊??啗?
+- [x] ?啣? `/api/news/crypto-figures` endpoint嚗?皞仃???∠?????祕蝛箇???
+- [x] ?垢?具TH ?賊??勗????寞憓?閬犖?拍???憛?
+- [x] ?湔 README / IMPLEMENTATION 隤芣?????皞?
+- [x] ?瑁?敺垢皜祈岫??蝡?build/lint
+## ?祆活隞餃?嚗耨甇??頛?∩???銵券?????
+
+- [x] ?”暺??啣??寧?芸葆?乓銝?啣????撓?交?嚗??芸???
+- [x] ??瘚??寧?挾頛嚗底????/鈭斗???嚗??臬??函?頛嚗?
+- [x] ????亙???timeout ??蝷綽??踹??湧??瑟???刻??乩葉
+- [x] ?湔閰單?? UI 頛?內嚗漱??????芷＊蝷箇???
+- [ ] ?垢 lint 瑼Ｘ嚗?雿璈?頝?
+
+# PR #8 Conflict Resolution (2026-04-10)
+
+- [x] Fetch latest origin/main and confirm current PR conflicts
+- [x] Merge origin/main into feat/crypto-figure-news-feed in isolated worktree
+- [x] Resolve IMPLEMENTATION.md, Todo.md, and frontend/src/App.tsx conflicts
+- [x] Run backend/frontend verification for the resolved PR branch
+- [x] Push updated feat/crypto-figure-news-feed branch to GitHub
