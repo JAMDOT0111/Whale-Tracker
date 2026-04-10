@@ -58,7 +58,7 @@ func (s *NotifyService) SendAlert(ctx context.Context, to string, alert model.Al
 	if to == "" {
 		return "", fmt.Errorf("missing notification email")
 	}
-	subject := "ETH Alert: " + alert.Title
+	subject := "ETH 異動通知: " + alert.Title
 	body := renderAlertEmail(alert)
 	if s.dryRun {
 		return "dry-run:" + alert.ID, nil
@@ -155,44 +155,44 @@ func (s *NotifyService) sendGmailAPI(ctx context.Context, raw string, alertID st
 
 func renderAlertEmail(alert model.AlertEvent) string {
 	var b strings.Builder
-	b.WriteString("Source: Etherscan API / public Ethereum on-chain data\n")
+	b.WriteString("資料來源: Etherscan API / 公開以太坊鏈上資料\n")
 	b.WriteString(alert.Description)
 	b.WriteString("\n\n")
-	b.WriteString("Address: " + alert.Address + "\n")
+	b.WriteString("地址: " + alert.Address + "\n")
 	if strings.HasPrefix(strings.ToLower(alert.Address), "0x") {
-		b.WriteString("Address link: https://etherscan.io/address/" + alert.Address + "\n")
+		b.WriteString("地址連結: https://etherscan.io/address/" + alert.Address + "\n")
 	}
 	if alert.Type == "test_notification" {
-		b.WriteString("Threshold: N/A (發信系統連線測試)\n")
+		b.WriteString("監控門檻: N/A (發信系統連線測試)\n")
 	} else {
-		b.WriteString("Threshold: > " + alert.ThresholdETH + " ETH\n")
+		b.WriteString("監控門檻: > " + alert.ThresholdETH + " ETH\n")
 	}
-	b.WriteString("Confidence: " + fmt.Sprintf("%.0f%%", alert.Confidence*100) + "\n")
-	b.WriteString("Heuristic: true. This is not financial advice and not a definitive fraud finding.\n\n")
+	b.WriteString("信心水準: " + fmt.Sprintf("%.0f%%", alert.Confidence*100) + "\n")
+	b.WriteString("啟發性分析: 是。此為程式自動判斷，不構成投資建議，亦不代表確定的詐欺行為。\n\n")
 	if len(alert.Evidence) > 0 {
-		b.WriteString("Evidence transactions:\n")
+		b.WriteString("關聯交易紀錄:\n")
 		for _, ev := range alert.Evidence {
-			b.WriteString("- Tx: " + ev.TxHash + "\n")
+			b.WriteString("- 交易哈希 (Tx): " + ev.TxHash + "\n")
 			if strings.HasPrefix(strings.ToLower(ev.TxHash), "0x") {
-				b.WriteString("  Link: https://etherscan.io/tx/" + ev.TxHash + "\n")
+				b.WriteString("  連結: https://etherscan.io/tx/" + ev.TxHash + "\n")
 			}
-			b.WriteString("  Value: " + ev.ValueETH + " " + ev.Asset + "\n")
+			b.WriteString("  金額: " + ev.ValueETH + " " + ev.Asset + "\n")
 			if ev.Timestamp != "" {
-				b.WriteString("  Timestamp: " + ev.Timestamp + "\n")
+				b.WriteString("  時間戳: " + ev.Timestamp + "\n")
 			}
 			if ev.From != "" {
-				b.WriteString("  From: " + ev.From + "\n")
+				b.WriteString("  發送方 (From): " + ev.From + "\n")
 			}
 			if ev.To != "" {
-				b.WriteString("  To: " + ev.To + "\n")
+				b.WriteString("  接收方 (To): " + ev.To + "\n")
 			}
 			if ev.Counterparty != "" {
-				b.WriteString("  Counterparty: " + ev.Counterparty + "\n")
+				b.WriteString("  交易對手: " + ev.Counterparty + "\n")
 			}
-			b.WriteString("  Reason: " + ev.Reason + "\n")
+			b.WriteString("  原因: " + ev.Reason + "\n")
 		}
 	}
-	b.WriteString("\nChange notification preferences in the dashboard.\n")
+	b.WriteString("\n如需修改通知偏好，請至儀表板設定。\n")
 	return b.String()
 }
 
@@ -200,10 +200,11 @@ func buildMIMEMessage(from, to, subject, body string) string {
 	if from == "" {
 		from = "me"
 	}
+	subjectBase64 := base64.StdEncoding.EncodeToString([]byte(subject))
 	headers := []string{
 		"From: " + from,
 		"To: " + to,
-		"Subject: " + subject,
+		"Subject: =?UTF-8?B?" + subjectBase64 + "?=",
 		"MIME-Version: 1.0",
 		"Content-Type: text/plain; charset=UTF-8",
 		"",

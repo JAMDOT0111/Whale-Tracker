@@ -12,6 +12,7 @@ import {
   getETHPrices,
   getMe,
   getNotificationStatus,
+  updateNotificationPreferences,
   listAlerts,
   listWatchlists,
   listWhales,
@@ -29,6 +30,7 @@ import type {
   GraphResponse,
   NewsItem,
   NotificationStatus,
+  NotificationPreference,
   PricePoint,
   Transaction,
   WatchlistItem,
@@ -69,6 +71,8 @@ function App() {
   const [watchThreshold, setWatchThreshold] = useState(DEFAULT_WATCH_THRESHOLD);
   const [user, setUser] = useState<AppUser | null>(null);
   const [notificationStatus, setNotificationStatus] = useState<NotificationStatus | null>(null);
+  const [notificationPref, setNotificationPref] = useState<NotificationPreference | null>(null);
+  const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [graphLoading, setGraphLoading] = useState(false);
@@ -138,6 +142,7 @@ function App() {
     ]);
     if (meResp.status === 'fulfilled') {
       setUser(meResp.value.user);
+      setNotificationPref(meResp.value.notification_preferences);
     }
     if (watchResp.status === 'fulfilled') setWatchlists(watchResp.value.items);
     if (alertResp.status === 'fulfilled') setAlerts(alertResp.value.items);
@@ -306,6 +311,23 @@ function App() {
     }
   };
 
+  const handleToggleNotificationPref = async () => {
+    const activeUser = requireGoogleLogin();
+    if (!activeUser || !notificationPref) return;
+    
+    setError('');
+    try {
+      const newPref = await updateNotificationPreferences({
+        ...notificationPref,
+        gmail_enabled: !notificationPref.gmail_enabled,
+      });
+      setNotificationPref(newPref);
+      setNotificationMessage(newPref.gmail_enabled ? '已開啟通知。' : '已關閉通知。');
+    } catch (err) {
+      setError('更新通知設定失敗: ' + errorMessage(err));
+    }
+  };
+
   const handleImport = async () => {
     setImportLoading(true);
     setImportMessage('');
@@ -397,6 +419,18 @@ function App() {
             >
               {testEmailLoading ? '寄送中...' : '寄送測試信'}
             </button>
+            {notificationPref && (
+              <button
+                onClick={handleToggleNotificationPref}
+                className={`mt-2 w-full rounded-lg border px-4 py-2 text-sm transition-colors ${
+                  notificationPref.gmail_enabled
+                    ? 'border-emerald-500 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30'
+                    : 'border-slate-500 bg-slate-500/20 text-slate-300 hover:bg-slate-500/30'
+                }`}
+              >
+                {notificationPref.gmail_enabled ? '已開啟通知 (點擊關閉)' : '已關閉通知 (點擊開啟)'}
+              </button>
+            )}
             {notificationMessage && <p className="mt-3 text-xs text-emerald-300">{notificationMessage}</p>}
             {notificationStatus && (
               <p className="mt-3 text-xs leading-5 text-slate-400">
@@ -987,6 +1021,8 @@ function tagClass(category: string) {
       return `${base} border-amber-300 bg-amber-300/10 text-amber-100`;
     case 'whale':
       return `${base} border-emerald-300 bg-emerald-300/10 text-emerald-100`;
+    case 'safe':
+      return `${base} border-blue-400 bg-blue-400/10 text-blue-200`;
     case 'scam':
     case 'high_risk':
       return `${base} border-red-300 bg-red-300/10 text-red-100`;
