@@ -85,7 +85,6 @@ function App() {
   const [graphMessage, setGraphMessage] = useState('');
   const [importMessage, setImportMessage] = useState('');
   const [notificationMessage, setNotificationMessage] = useState('');
-  const [whaleListVersion, setWhaleListVersion] = useState(0);
   const thresholdRef = useRef(threshold);
   const sortRef = useRef(sort);
   const latestWhalesRequestId = useRef(0);
@@ -119,7 +118,7 @@ function App() {
         if (requestId === latestWhalesRequestId.current) {
           setWhales(resp);
           setPage(nextPage);
-          setWhaleListVersion((version) => version + 1);
+          setWhaleListVersion((version: number) => version + 1);
         }
       } catch (err) {
         if (requestId === latestWhalesRequestId.current) setError(errorMessage(err));
