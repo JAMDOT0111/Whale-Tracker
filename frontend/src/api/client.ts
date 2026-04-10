@@ -4,6 +4,7 @@ import type {
   AddressDetailResponse,
   AppUser,
   BalanceResponse,
+  FigureNewsResponse,
   GraphRequest,
   GraphResponse,
   NewsResponse,
@@ -215,6 +216,10 @@ export async function getETHPrices(interval: string): Promise<PriceSeriesRespons
 
 export async function getETHNews(): Promise<NewsResponse> {
   return get('/news/eth');
+}
+
+export async function getCryptoFigureNews(): Promise<FigureNewsResponse> {
+  return get('/news/crypto-figures');
 }
 
 export async function listWatchlists(): Promise<{ items: WatchlistItem[] }> {

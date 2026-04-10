@@ -11,6 +11,7 @@ ETH whale and smart-money tracking prototype for public on-chain analysis and Gm
 - Gmail OAuth / SMTP notification delivery
 - Address balance, transaction, relationship graph, timeline, and flow visualization
 - ETH price chart, public news feed, labels, risk and heuristic alert evidence
+- Vitalik / Trump crypto figure news feed from Google News RSS
 - One-user-experience design: no paid membership tiers and no Stripe integration
 
 ## Tech Stack

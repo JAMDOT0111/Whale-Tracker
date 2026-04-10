@@ -177,6 +177,22 @@ export interface NewsResponse {
   cached_at: string;
 }
 
+export interface FigureNewsItem {
+  id: string;
+  title: string;
+  url: string;
+  source: string;
+  published_at: string;
+  snippet: string;
+  person: string;
+}
+
+export interface FigureNewsResponse {
+  items: FigureNewsItem[];
+  source: string;
+  cached_at: string;
+}
+
 export interface RiskScore {
   score: number;
   level: string;
