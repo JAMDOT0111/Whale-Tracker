@@ -95,6 +95,136 @@ export interface WhaleListResponse {
   limit_notice: string;
 }
 
+export interface CandidateScoreBreakdown {
+  balance: number;
+  historical: number;
+  flow: number;
+  activity: number;
+  protocol: number;
+  anomaly: number;
+  total: number;
+}
+
+export interface CandidateActivityStats {
+  activity_loaded: boolean;
+  activity_source: string;
+  last_activity_at?: string;
+  last_enriched_at?: string;
+  tx_count_24h: number;
+  tx_count_7d: number;
+  tx_count_30d: number;
+  inflow_eth_24h: string;
+  outflow_eth_24h: string;
+  netflow_eth_24h: string;
+  inflow_eth_7d: string;
+  outflow_eth_7d: string;
+  netflow_eth_7d: string;
+  largest_in_tx_eth_7d: string;
+  largest_out_tx_eth_7d: string;
+  largest_tx_eth_7d: string;
+  active_days_7d: number;
+  dormancy_days: number;
+  is_reactivated: boolean;
+  protocol_interactions_7d: number;
+  protocol_types_7d: number;
+}
+
+export interface CandidateScanCursor {
+  address: string;
+  last_scanned_block: number;
+  last_scanned_at?: string;
+  last_activity_at?: string;
+}
+
+export interface CandidateBuildState {
+  status: string;
+  mode: string;
+  message?: string;
+  processed: number;
+  total: number;
+  started_at?: string;
+  finished_at?: string;
+  error?: string;
+}
+
+export interface CandidateAddress {
+  address: string;
+  name_tag?: string;
+  rank: number;
+  balance_eth: string;
+  txn_count: number;
+  labels: AddressLabelResult[];
+  base_pass: boolean;
+  event_pass: boolean;
+  score: number;
+  priority_tier: string;
+  selected_for_review: boolean;
+  reasons: string[];
+  score_breakdown: CandidateScoreBreakdown;
+  activity: CandidateActivityStats;
+  updated_at: string;
+}
+
+export interface CandidateListResponse {
+  items: CandidateAddress[];
+  total: number;
+  available_total: number;
+  review_total: number;
+  watch_total: number;
+  refreshed_at?: string;
+  last_build_mode: string;
+  activity_enriched_count: number;
+  scan_limit: number;
+  limit_notice: string;
+}
+
+export interface CandidateSummaryResponse {
+  available_total: number;
+  review_total: number;
+  watch_total: number;
+  refreshed_at?: string;
+  last_build_mode: string;
+  activity_enriched_count: number;
+  scan_limit: number;
+  full_snapshot_ready: boolean;
+  last_full_build_at?: string;
+  last_incremental_at?: string;
+  build: CandidateBuildState;
+}
+
+export interface CandidateRebuildResponse {
+  ok: boolean;
+  started: boolean;
+  message: string;
+  summary: CandidateSummaryResponse;
+}
+
+export interface TokenApprovalItem {
+  token_address: string;
+  token_name?: string;
+  token_symbol?: string;
+  token_decimals: number;
+  spender: string;
+  spender_label?: string;
+  approval_value: string;
+  approval_display?: string;
+  approval_type: string;
+  risk_level: string;
+  tx_hash: string;
+  timestamp: string;
+}
+
+export interface TokenApprovalResponse {
+  address: string;
+  items: TokenApprovalItem[];
+  scanned_at: string;
+  source: string;
+  candidate_only: boolean;
+  candidate_tier?: string;
+  limit_applied: number;
+  review_required: boolean;
+}
+
 export interface WhaleImportResponse {
   import_id: string;
   imported: number;
@@ -177,6 +307,22 @@ export interface NewsResponse {
   cached_at: string;
 }
 
+export interface FigureNewsItem {
+  id: string;
+  title: string;
+  url: string;
+  source: string;
+  published_at: string;
+  snippet: string;
+  person: string;
+}
+
+export interface FigureNewsResponse {
+  items: FigureNewsItem[];
+  source: string;
+  cached_at: string;
+}
+
 export interface RiskScore {
   score: number;
   level: string;
@@ -191,6 +337,7 @@ export interface AddressDetailResponse {
   address: string;
   balance?: BalanceResponse;
   whale?: WhaleAccount;
+  candidate?: CandidateAddress;
   labels: AddressLabelResult[];
   risk_score: RiskScore;
   is_tracked: boolean;

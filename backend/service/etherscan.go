@@ -284,12 +284,16 @@ func (c *EtherscanClient) callAPI(params map[string]string) (*model.EtherscanRes
 }
 
 func (c *EtherscanClient) fetchNormalTx(address string, page, offset int) ([]model.Transaction, error) {
+	return c.fetchNormalTxRange(address, page, offset, 0, 99999999)
+}
+
+func (c *EtherscanClient) fetchNormalTxRange(address string, page, offset int, startBlock, endBlock uint64) ([]model.Transaction, error) {
 	resp, err := c.callAPI(map[string]string{
 		"module":     "account",
 		"action":     "txlist",
 		"address":    address,
-		"startblock": "0",
-		"endblock":   "99999999",
+		"startblock": strconv.FormatUint(startBlock, 10),
+		"endblock":   strconv.FormatUint(endBlock, 10),
 		"page":       strconv.Itoa(page),
 		"offset":     strconv.Itoa(offset),
 		"sort":       "desc",
@@ -323,12 +327,16 @@ func (c *EtherscanClient) fetchNormalTx(address string, page, offset int) ([]mod
 }
 
 func (c *EtherscanClient) fetchInternalTx(address string, page, offset int) ([]model.Transaction, error) {
+	return c.fetchInternalTxRange(address, page, offset, 0, 99999999)
+}
+
+func (c *EtherscanClient) fetchInternalTxRange(address string, page, offset int, startBlock, endBlock uint64) ([]model.Transaction, error) {
 	resp, err := c.callAPI(map[string]string{
 		"module":     "account",
 		"action":     "txlistinternal",
 		"address":    address,
-		"startblock": "0",
-		"endblock":   "99999999",
+		"startblock": strconv.FormatUint(startBlock, 10),
+		"endblock":   strconv.FormatUint(endBlock, 10),
 		"page":       strconv.Itoa(page),
 		"offset":     strconv.Itoa(offset),
 		"sort":       "desc",
@@ -359,6 +367,30 @@ func (c *EtherscanClient) fetchInternalTx(address string, page, offset int) ([]m
 		})
 	}
 	return result, nil
+}
+
+func (c *EtherscanClient) latestBlockNumber() (uint64, error) {
+	resp, err := c.callAPI(map[string]string{
+		"module": "proxy",
+		"action": "eth_blockNumber",
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	var raw string
+	if err := json.Unmarshal(resp.Result, &raw); err != nil {
+		return 0, err
+	}
+	raw = strings.TrimSpace(strings.TrimPrefix(raw, "0x"))
+	if raw == "" {
+		return 0, fmt.Errorf("missing latest block number")
+	}
+	value, err := strconv.ParseUint(raw, 16, 64)
+	if err != nil {
+		return 0, err
+	}
+	return value, nil
 }
 
 func (c *EtherscanClient) fetchTokenTx(address string, page, offset int) ([]model.Transaction, error) {

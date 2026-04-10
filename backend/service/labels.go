@@ -71,6 +71,65 @@ var knownAddresses = map[string]AddressLabel{
 	"0x75e89d5979e4f6fba9f97c104c2f0afb3f1dcb88": {Tag: "exchange", Name: "MEXC"},
 	"0x9642b23ed1e01df1092b92641051881a322f5d4e": {Tag: "exchange", Name: "MEXC"},
 
+	// Coincheck
+	"0x8696e84ab5e78983f2456bcb5c199eea9648c8c2": {Tag: "exchange", Name: "Coincheck"},
+
+	// QuadrigaCX
+	"0x1e143b2588705dfea63a17f2032ca123df995ce0": {Tag: "exchange", Name: "QuadrigaCX"},
+	"0x5b5b69f4e0add2df5d2176d7dbd20b4897bc7ec4": {Tag: "exchange", Name: "QuadrigaCX"},
+
+	// BtcTurk
+	"0x76ec5a0d3632b2133d9f1980903305b62678fbd3": {Tag: "exchange", Name: "BtcTurk"},
+
+	// Bitpanda
+	"0xb10edd6fa6067dba8d4326f1c8f0d1c791594f13": {Tag: "exchange", Name: "Bitpanda"},
+	"0xf197c6f2ac14d25ee2789a73e4847732c7f16bc9": {Tag: "exchange", Name: "Bitpanda"},
+
+	// bitFlyer
+	"0x111cff45948819988857bbf1966a0399e0d1141e": {Tag: "exchange", Name: "bitFlyer"},
+
+	// Bullish
+	"0x100ae042ef0ea159ecc3513e9a378ff21f3829ba": {Tag: "exchange", Name: "Bullish"},
+
+	// HashKey
+	"0xee1bf4d7c53af2beafc7dc1dcea222a8c6d87ad9": {Tag: "exchange", Name: "HashKey Exchange"},
+
+	// Bitso
+	"0xe3ecd65cf2ad2eba2aa2be1d0894753b2172abd1": {Tag: "exchange", Name: "Bitso"},
+
+	// eToro
+	"0x77fb357f55bef5a70d30663955f8c9f35794df0e": {Tag: "exchange", Name: "eToro"},
+	"0x434587332cc35d33db75b93f4f27cc496c67a4db": {Tag: "exchange", Name: "eToro"},
+
+	// Coinone
+	"0x1e2fcfd26d36183f1a5d90f0e6296915b02bcb40": {Tag: "exchange", Name: "Coinone"},
+
+	// Coinhako
+	"0xf4e6deea1b4da85c2d68db8d771d37ec1148b853": {Tag: "exchange", Name: "Coinhako"},
+
+	// Bitget
+	"0x59708733fbbf64378d9293ec56b977c011a08fd2": {Tag: "exchange", Name: "Bitget"},
+
+	// ===== DEX / DeFi =====
+
+	// Uniswap
+	"0xe592427a0aece92de3edee1f18e0157c05861564": {Tag: "defi", Name: "Uniswap V3 Router"},
+	"0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45": {Tag: "defi", Name: "Uniswap Universal Router"},
+	"0x7a250d5630b4cf539739df2c5dacb4c659f2488d": {Tag: "defi", Name: "Uniswap V2 Router"},
+
+	// 1inch
+	"0x1111111254eeb25477b68fb85ed929f73a960582": {Tag: "defi", Name: "1inch Router"},
+	"0x111111125421ca6dc452d289314280a0f8842a65": {Tag: "defi", Name: "1inch Aggregation Router"},
+
+	// Aave
+	"0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2": {Tag: "defi", Name: "Aave V3 Pool"},
+
+	// Curve
+	"0x16c6521dff6bab339122a0fe25a9116693265353": {Tag: "defi", Name: "Curve Router"},
+
+	// Maker
+	"0xc3d688b66703497daa19211eedff47f25384cdc3": {Tag: "defi", Name: "Maker DSR Manager"},
+
 	// ===== Cross-Chain Bridges =====
 
 	// Wormhole

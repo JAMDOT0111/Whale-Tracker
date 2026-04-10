@@ -216,6 +216,17 @@ func (s *AppStore) GetWhale(_ context.Context, address string) (model.WhaleAccou
 	return whale, ok
 }
 
+func (s *AppStore) AllWhales(_ context.Context) []model.WhaleAccount {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	items := make([]model.WhaleAccount, 0, len(s.whales))
+	for _, whale := range s.whales {
+		items = append(items, whale)
+	}
+	return items
+}
+
 func (s *AppStore) UpsertWatchlist(_ context.Context, userID string, req model.UpsertWatchlistRequest) (model.WatchlistItem, error) {
 	addr := strings.ToLower(strings.TrimSpace(req.Address))
 	if !IsValidEthAddress(addr) {

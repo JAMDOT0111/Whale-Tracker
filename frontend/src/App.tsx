@@ -1,20 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import AddressInput from './components/AddressInput';
+import CandidateQueue from './components/CandidateQueue';
 import GraphView from './components/GraphView';
 import {
   captureGoogleOAuthCallback,
   getAddressAISummary,
+  getCandidateSummary,
   getAddressDetail,
   getAddressGraph,
   getAddressTransactions,
+  getCryptoFigureNews,
   getETHNews,
   getETHPrices,
   getMe,
   getNotificationStatus,
+  getTokenApprovals,
   listAlerts,
+  listCandidates,
   listWatchlists,
   listWhales,
+  rebuildCandidates,
   sendTestNotification,
   startGoogleOAuthLogin,
   syncWhalesFromConfiguredURL,
@@ -25,10 +31,14 @@ import type {
   AlertEvent,
   AppUser,
   AddressDetailResponse,
+  CandidateAddress,
+  CandidateSummaryResponse,
+  FigureNewsItem,
   GraphResponse,
   NewsItem,
   NotificationStatus,
   PricePoint,
+  TokenApprovalResponse,
   Transaction,
   WatchlistItem,
   WhaleAccount,
@@ -60,15 +70,25 @@ function App() {
   const [graph, setGraph] = useState<GraphResponse | null>(null);
   const [watchlists, setWatchlists] = useState<WatchlistItem[]>([]);
   const [alerts, setAlerts] = useState<AlertEvent[]>([]);
+  const [candidates, setCandidates] = useState<CandidateAddress[]>([]);
+  const [candidateSummary, setCandidateSummary] = useState<CandidateSummaryResponse | null>(null);
+  const [approvals, setApprovals] = useState<TokenApprovalResponse | null>(null);
   const [priceInterval, setPriceInterval] = useState('5m');
   const [prices, setPrices] = useState<PricePoint[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
+  const [selectedNewsItem, setSelectedNewsItem] = useState<NewsItem | null>(null);
+  const [figureNews, setFigureNews] = useState<FigureNewsItem[]>([]);
+  const [figureNewsSource, setFigureNewsSource] = useState('');
   const [importLoading, setImportLoading] = useState(false);
   const [watchThreshold, setWatchThreshold] = useState(DEFAULT_WATCH_THRESHOLD);
   const [user, setUser] = useState<AppUser | null>(null);
   const [notificationStatus, setNotificationStatus] = useState<NotificationStatus | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [testEmailLoading, setTestEmailLoading] = useState(false);
+  const [candidateLoading, setCandidateLoading] = useState(true);
+  const [candidateRefreshing, setCandidateRefreshing] = useState(false);
+  const [approvalsLoading, setApprovalsLoading] = useState(false);
+  const [approvalsError, setApprovalsError] = useState('');
   const [error, setError] = useState('');
   const [importMessage, setImportMessage] = useState('');
   const [notificationMessage, setNotificationMessage] = useState('');
@@ -118,10 +138,37 @@ function App() {
     await loadWhales(1);
   }, [loadWhales]);
 
+  const loadCandidateData = useCallback(async () => {
+    setCandidateLoading(true);
+    let nextSummary: CandidateSummaryResponse | null = null;
+    const [listResp, summaryResp] = await Promise.allSettled([listCandidates({ limit: 8 }), getCandidateSummary()]);
+    if (listResp.status === 'fulfilled') setCandidates(listResp.value.items);
+    if (summaryResp.status === 'fulfilled') {
+      nextSummary = summaryResp.value;
+      setCandidateSummary(summaryResp.value);
+    }
+    if (listResp.status === 'rejected' && summaryResp.status === 'rejected') {
+      setError(errorMessage(listResp.reason));
+    }
+    setCandidateLoading(false);
+    return nextSummary;
+  }, []);
+
   const loadSideData = useCallback(async () => {
-    const [priceResp, newsResp] = await Promise.allSettled([getETHPrices(priceInterval), getETHNews()]);
+    const [priceResp, newsResp, figureNewsResp] = await Promise.allSettled([
+      getETHPrices(priceInterval),
+      getETHNews(),
+      getCryptoFigureNews(),
+    ]);
     if (priceResp.status === 'fulfilled') setPrices(priceResp.value.items);
     if (newsResp.status === 'fulfilled') setNews(newsResp.value.items);
+    if (figureNewsResp.status === 'fulfilled') {
+      setFigureNews(figureNewsResp.value.items);
+      setFigureNewsSource(figureNewsResp.value.source);
+    } else {
+      setFigureNews([]);
+      setFigureNewsSource('crypto_figure_news_unavailable');
+    }
   }, [priceInterval]);
 
   const loadUserData = useCallback(async () => {
@@ -144,12 +191,8 @@ function App() {
     if (auth.userId) setNotificationMessage('Gmail 登入授權成功，可以直接追蹤地址。');
     if (auth.error) setError(`Gmail 登入失敗：${auth.error}`);
     void (async () => {
-      try {
-        await syncWhalesFromConfiguredURL();
-      } catch {
-        // Keep demo/fallback rows if Etherscan is temporarily unavailable.
-      }
       await loadWhales(1);
+      await loadCandidateData();
     })();
     loadUserData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -164,6 +207,31 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sort]);
 
+  const handleRebuildCandidates = useCallback(async () => {
+    setCandidateRefreshing(true);
+    setError('');
+    try {
+      const resp = await rebuildCandidates();
+      setCandidateSummary(resp.summary);
+      let latestSummary = (await loadCandidateData()) ?? resp.summary;
+
+      for (let attempts = 0; isCandidateBuildRunning(latestSummary) && attempts < 720; attempts += 1) {
+        await wait(2500);
+        latestSummary = (await loadCandidateData()) ?? latestSummary;
+      }
+
+      if (isCandidateBuildRunning(latestSummary)) {
+        setError('候選池仍在背景掃描中，請稍後再查看進度。');
+      } else if (latestSummary.build.status === 'failed') {
+        setError(latestSummary.build.error || latestSummary.build.message || '候選池掃描失敗');
+      }
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setCandidateRefreshing(false);
+    }
+  }, [loadCandidateData]);
+
   const selectAddress = useCallback(async (address: string) => {
     setSelectedAddress(address);
     setDetailLoading(true);
@@ -171,6 +239,9 @@ function App() {
     setSummary(null);
     setTransactions([]);
     setGraph(null);
+    setApprovals(null);
+    setApprovalsError('');
+    setApprovalsLoading(false);
     setError('');
 
     const [detailResp, summaryResp, txResp, graphResp] = await Promise.allSettled([
@@ -185,6 +256,18 @@ function App() {
     if (graphResp.status === 'fulfilled') setGraph(graphResp.value);
     if (detailResp.status === 'rejected') setError(errorMessage(detailResp.reason));
     setDetailLoading(false);
+
+    if (detailResp.status === 'fulfilled' && isReviewCandidate(detailResp.value.candidate)) {
+      setApprovalsLoading(true);
+      try {
+        const approvalResp = await getTokenApprovals(address);
+        setApprovals(approvalResp);
+      } catch (err) {
+        setApprovalsError(errorMessage(err));
+      } finally {
+        setApprovalsLoading(false);
+      }
+    }
   }, []);
 
   const requireGoogleLogin = useCallback((): AppUser | null => {
@@ -266,6 +349,7 @@ function App() {
       const resp = await syncWhalesFromConfiguredURL();
       setImportMessage(`已同步 ${resp.imported} 筆，略過 ${resp.skipped} 筆。`);
       await loadWhales(1);
+      await loadCandidateData();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -281,6 +365,7 @@ function App() {
   }));
 
   const selectedWhale = whales?.items.find((item) => item.address === selectedAddress);
+  const newsTickerItems = news.length > 0 ? [...news, ...news] : [];
 
   return (
     <div className="min-h-screen bg-[#171a18] text-slate-100">
@@ -394,6 +479,14 @@ function App() {
               ))}
             </div>
           </section>
+          <CandidateQueue
+            items={candidates}
+            summary={candidateSummary}
+            loading={candidateLoading}
+            refreshing={candidateRefreshing}
+            onRefresh={handleRebuildCandidates}
+            onSelect={selectAddress}
+          />
         </aside>
 
         <section className="space-y-4">
@@ -568,6 +661,9 @@ function App() {
             selectedWhale={selectedWhale}
             loading={detailLoading}
             onTrack={handleTrack}
+            approvals={approvals}
+            approvalsLoading={approvalsLoading}
+            approvalsError={approvalsError}
           />
         </section>
 
@@ -591,8 +687,37 @@ function App() {
 
           <section className="rounded-lg border border-slate-700 bg-[#20231f] p-4">
             <h2 className="text-sm font-semibold text-slate-200">ETH 相關報導</h2>
+            <div className="news-ticker mt-3 overflow-hidden rounded-lg border border-slate-700 bg-[#171a18]">
+              {newsTickerItems.length === 0 ? (
+                <p className="px-3 py-3 text-xs text-slate-500">新聞來源暫時不可用，稍後再試。</p>
+              ) : (
+                <div className="news-ticker-track flex gap-3 py-3">
+                  {newsTickerItems.map((item, index) => (
+                    <button
+                      key={`${item.id}-${index}`}
+                      type="button"
+                      onClick={() => setSelectedNewsItem(item)}
+                      className="w-72 shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-left hover:border-emerald-500 focus:border-emerald-400 focus:outline-none"
+                    >
+                      <span className="block text-sm font-medium leading-5 text-slate-100">{item.title}</span>
+                      <span className="mt-2 block text-xs text-slate-500">
+                        {item.source} · {formatNewsTime(item.published_at)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-slate-700 bg-[#20231f] p-4">
+            <h2 className="text-sm font-semibold text-slate-200">重要人物相關新聞</h2>
+            <p className="mt-1 text-xs text-slate-500">Vitalik / Trump 的加密貨幣相關新聞。</p>
             <div className="mt-3 space-y-3">
-              {news.map((item) => (
+              {figureNews.length === 0 && (
+                <p className="text-xs text-slate-500">{figureNewsEmptyMessage(figureNewsSource)}</p>
+              )}
+              {figureNews.slice(0, 3).map((item) => (
                 <a
                   key={item.id}
                   href={item.url}
@@ -600,8 +725,11 @@ function App() {
                   rel="noreferrer"
                   className="block rounded-lg border border-slate-700 px-3 py-2 hover:border-emerald-500"
                 >
-                  <span className="block text-sm text-slate-100">{item.title}</span>
-                  <span className="mt-1 block text-xs text-slate-500">{item.source}</span>
+                  <span className="block text-xs text-emerald-300">
+                    {item.person} · {item.source} · {formatNewsTime(item.published_at)}
+                  </span>
+                  <span className="mt-2 block text-sm leading-5 text-slate-100">{item.title}</span>
+                  <span className="mt-2 block text-xs leading-5 text-slate-500">{item.snippet}</span>
                 </a>
               ))}
             </div>
@@ -613,12 +741,56 @@ function App() {
               <li>Etherscan：單地址交易與餘額補查</li>
               <li>Top Accounts CSV：巨鯨種子匯入</li>
               <li>CoinGecko：ETH 價格快取</li>
-              <li>GDELT：合規新聞連結</li>
+              <li>GDELT / Cointelegraph：合規新聞連結</li>
+              <li>Google News RSS：Vitalik / Trump 加密貨幣新聞</li>
               <li>Gmail：通知寄送，支援 dry-run</li>
             </ul>
           </section>
         </aside>
       </main>
+      {selectedNewsItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6">
+          <button
+            type="button"
+            aria-label="關閉新聞詳情"
+            onClick={() => setSelectedNewsItem(null)}
+            className="absolute inset-0 bg-black/70"
+          />
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="news-dialog-title"
+            className="relative w-full max-w-lg rounded-lg border border-slate-700 bg-[#20231f] p-5 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs text-emerald-300">
+                  {selectedNewsItem.source} · {formatNewsTime(selectedNewsItem.published_at)}
+                </p>
+                <h2 id="news-dialog-title" className="mt-2 text-lg font-semibold leading-6 text-slate-100">
+                  {selectedNewsItem.title}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedNewsItem(null)}
+                className="rounded-lg border border-slate-600 px-2 py-1 text-xs text-slate-300 hover:border-emerald-500"
+              >
+                關閉
+              </button>
+            </div>
+            <p className="mt-4 text-sm leading-6 text-slate-300">{selectedNewsItem.snippet}</p>
+            <a
+              href={selectedNewsItem.url}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 inline-flex rounded-lg border border-emerald-500 px-4 py-2 text-sm font-medium text-emerald-200 hover:bg-emerald-500/10"
+            >
+              開啟原文
+            </a>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
@@ -631,6 +803,9 @@ function AddressDetailPanel({
   selectedWhale,
   loading,
   onTrack,
+  approvals,
+  approvalsLoading,
+  approvalsError,
 }: {
   detail: AddressDetailResponse | null;
   summary: AISummaryResponse | null;
@@ -639,7 +814,15 @@ function AddressDetailPanel({
   selectedWhale?: WhaleAccount;
   loading: boolean;
   onTrack: (address: string, alias?: string) => void;
+  approvals: TokenApprovalResponse | null;
+  approvalsLoading: boolean;
+  approvalsError: string;
 }) {
+  const whale = selectedWhale ?? detail?.whale;
+  const candidate = detail?.candidate ?? null;
+  const candidateTier = candidate ? effectiveCandidateTier(candidate) : 'backlog';
+  const reviewCandidate = candidate ? isReviewCandidate(candidate) : false;
+
   if (loading) {
     return (
       <div className="rounded-lg border border-slate-700 bg-[#20231f] p-4 text-sm text-slate-400">
@@ -661,24 +844,24 @@ function AddressDetailPanel({
         <div>
           <h2 className="text-base font-semibold">地址詳情</h2>
           <p className="font-mono text-sm text-emerald-200">{detail.address}</p>
-          {selectedWhale?.name_tag && <p className="text-sm text-slate-400">{selectedWhale.name_tag}</p>}
+          {whale?.name_tag && <p className="text-sm text-slate-400">{whale.name_tag}</p>}
         </div>
         <button
-          onClick={() => onTrack(detail.address, selectedWhale?.name_tag)}
+          onClick={() => onTrack(detail.address, whale?.name_tag)}
           className="rounded-lg border border-emerald-500 px-3 py-2 text-sm text-emerald-200"
         >
           {detail.is_tracked ? '已追蹤' : '+ 追蹤此地址'}
         </button>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className={`mt-4 grid grid-cols-1 gap-3 ${candidate ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
         <Metric
           label="ETH 餘額"
           value={
             detail.balance?.eth_balance
               ? `${formatETH(detail.balance.eth_balance)} ETH`
-              : selectedWhale
-                ? `${formatETH(selectedWhale.balance_eth)} ETH`
+              : whale
+                ? `${formatETH(whale.balance_eth)} ETH`
                 : '待補查'
           }
         />
@@ -688,6 +871,13 @@ function AddressDetailPanel({
           value={`${Math.round((detail.labels[0]?.confidence || 0) * 100)}%`}
           hint={detail.labels[0]?.source || 'local_rules'}
         />
+        {candidate && (
+          <Metric
+            label="Candidate Score"
+            value={`${candidate.score} / 100`}
+            hint={reviewCandidate ? 'review tier' : candidateTier}
+          />
+        )}
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -698,11 +888,155 @@ function AddressDetailPanel({
         ))}
       </div>
 
+      {candidate && (
+        <div className="mt-4 rounded-lg border border-slate-700 bg-[#171a18] p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm font-semibold text-slate-200">Candidate Review Signals</h3>
+                <span className={candidateTierClass(candidateTier)}>
+                  {reviewCandidate ? 'review' : candidateTier}
+                </span>
+                {reviewCandidate && (
+                  <span className="rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-2 py-1 text-[11px] uppercase tracking-wide text-emerald-200">
+                    selected
+                  </span>
+                )}
+              </div>
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                這個分數會綜合資產規模、歷史活躍度、近 7 天資金流、協議互動與異常訊號。
+              </p>
+            </div>
+            <div className="text-xs text-slate-500">
+              <p>更新時間：{formatOptionalTime(candidate.updated_at)}</p>
+              <p>活動來源：{candidate.activity.activity_source || 'n/a'}</p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <MiniMetric label="7d tx count" value={candidate.activity.tx_count_7d.toString()} />
+            <MiniMetric label="7d netflow" value={formatSignedETH(candidate.activity.netflow_eth_7d)} />
+            <MiniMetric label="Largest 7d tx" value={`${formatETH(candidate.activity.largest_tx_eth_7d)} ETH`} />
+            <MiniMetric label="Protocols 7d" value={candidate.activity.protocol_interactions_7d.toString()} />
+            <MiniMetric label="Active days" value={candidate.activity.active_days_7d.toString()} />
+            <MiniMetric label="Dormancy" value={`${candidate.activity.dormancy_days}d`} />
+            <MiniMetric
+              label="Last activity"
+              value={candidate.activity.last_activity_at ? formatOptionalTime(candidate.activity.last_activity_at) : 'n/a'}
+            />
+            <MiniMetric
+              label="Reactivated"
+              value={candidate.activity.is_reactivated ? 'yes' : 'no'}
+              hint={candidate.activity.is_reactivated ? 'watch closely' : undefined}
+            />
+          </div>
+
+          <div className="mt-4">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Score Breakdown</h4>
+            <div className="mt-3 grid grid-cols-2 gap-3 xl:grid-cols-3">
+              <MiniMetric label="Balance" value={candidate.score_breakdown.balance.toString()} />
+              <MiniMetric label="Historical" value={candidate.score_breakdown.historical.toString()} />
+              <MiniMetric label="Flow" value={candidate.score_breakdown.flow.toString()} />
+              <MiniMetric label="Activity" value={candidate.score_breakdown.activity.toString()} />
+              <MiniMetric label="Protocol" value={candidate.score_breakdown.protocol.toString()} />
+              <MiniMetric label="Anomaly" value={candidate.score_breakdown.anomaly.toString()} />
+            </div>
+          </div>
+
+          {candidate.reasons.length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Ranking Reasons</h4>
+              <ul className="mt-3 space-y-2 text-sm text-slate-300">
+                {candidate.reasons.map((reason) => (
+                  <li key={reason} className="rounded-lg border border-slate-800 bg-[#111412] px-3 py-2">
+                    {reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
       {summary && (
         <div className="mt-4 rounded-lg border border-slate-700 bg-[#171a18] p-3">
           <h3 className="text-sm font-semibold text-slate-200">AI 簡短分析</h3>
           <p className="mt-2 text-sm leading-6 text-slate-300">{summary.summary}</p>
           <p className="mt-2 text-xs text-slate-500">Heuristic · confidence {Math.round(summary.confidence * 100)}%</p>
+        </div>
+      )}
+
+      {candidate && (
+        <div className="mt-4 rounded-lg border border-slate-700 bg-[#171a18] p-3">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-200">Token Approvals</h3>
+              <p className="mt-1 text-xs text-slate-500">
+                只有 review tier 候選地址才會進一步掃描 ERC-20 approvals，避免把 API 配額浪費在雜訊地址上。
+              </p>
+            </div>
+            <span className={candidateTierClass(candidateTier)}>tier: {candidateTier}</span>
+          </div>
+
+          {!reviewCandidate && (
+            <p className="mt-3 text-xs text-slate-500">這個地址目前不是 review tier，所以 approvals enrichment 會先跳過。</p>
+          )}
+
+          {reviewCandidate && approvalsLoading && (
+            <p className="mt-3 text-sm text-slate-400">正在掃描最近的 approval logs...</p>
+          )}
+
+          {reviewCandidate && approvalsError && (
+            <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+              {approvalsError}
+            </div>
+          )}
+
+          {reviewCandidate && approvals && !approvalsLoading && !approvalsError && (
+            <>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                <span>Scanned：{formatOptionalTime(approvals.scanned_at)}</span>
+                <span>Source：{approvals.source}</span>
+                <span>Limit：{approvals.limit_applied}</span>
+              </div>
+
+              {approvals.items.length === 0 ? (
+                <p className="mt-3 text-xs text-slate-500">這個 review 地址目前沒有查到近期 ERC-20 approval logs。</p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {approvals.items.map((item) => (
+                    <div
+                      key={`${item.tx_hash}-${item.spender}-${item.token_address}`}
+                      className="rounded-lg border border-slate-800 bg-[#111412] px-3 py-3"
+                    >
+                      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-medium text-slate-100">
+                              {item.token_symbol || item.token_name || shortAddress(item.token_address)}
+                            </span>
+                            <span className={approvalRiskClass(item.risk_level)}>{item.risk_level}</span>
+                            <span className="rounded-lg border border-slate-700 px-2 py-1 text-[11px] uppercase tracking-wide text-slate-300">
+                              {item.approval_type}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-xs text-slate-400">
+                            spender：{item.spender_label || shortAddress(item.spender)}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">{item.spender}</p>
+                        </div>
+                        <div className="text-left text-xs text-slate-400 md:text-right">
+                          <p>{item.approval_display || item.approval_value}</p>
+                          <p className="mt-1 text-slate-500">{formatOptionalTime(item.timestamp)}</p>
+                          <p className="mt-1 font-mono text-slate-500">{shortAddress(item.tx_hash)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
@@ -773,6 +1107,16 @@ function Metric({ label, value, hint }: { label: string; value: string; hint?: s
     <div className="rounded-lg border border-slate-700 bg-[#171a18] p-3">
       <p className="text-xs text-slate-500">{label}</p>
       <p className="mt-1 text-lg font-semibold text-slate-100">{value}</p>
+      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+    </div>
+  );
+}
+
+function MiniMetric({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="rounded-lg border border-slate-800 bg-[#111412] px-3 py-3">
+      <p className="text-[11px] uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-slate-100">{value}</p>
       {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
     </div>
   );
@@ -899,8 +1243,91 @@ function shortTime(raw: string, interval: string) {
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
+function formatNewsTime(raw: string) {
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleString('zh-TW', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatOptionalTime(raw?: string) {
+  if (!raw) return 'n/a';
+  return formatNewsTime(raw);
+}
+
+function formatSignedETH(value: string) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return value;
+  const prefix = n > 0 ? '+' : '';
+  return `${prefix}${formatETH(value)} ETH`;
+}
+
+function hasCandidateRecentActivity(candidate: CandidateAddress) {
+  return (
+    candidate.activity.activity_loaded &&
+    (candidate.activity.tx_count_7d >= 2 ||
+      Math.abs(Number(candidate.activity.netflow_eth_7d) || 0) >= 300 ||
+      (Number(candidate.activity.largest_tx_eth_7d) || 0) >= 150 ||
+      candidate.activity.protocol_interactions_7d >= 1 ||
+      candidate.activity.is_reactivated)
+  );
+}
+
+function effectiveCandidateTier(candidate: CandidateAddress) {
+  if (!hasCandidateRecentActivity(candidate)) return 'backlog';
+  return candidate.priority_tier;
+}
+
+function isReviewCandidate(candidate?: CandidateAddress | null) {
+  if (!candidate) return false;
+  return candidate.selected_for_review && effectiveCandidateTier(candidate) === 'review';
+}
+
+function candidateTierClass(tier: string) {
+  const base = 'rounded-lg border px-2 py-1 text-[11px] uppercase tracking-wide';
+  switch (tier) {
+    case 'review':
+      return `${base} border-emerald-500/50 bg-emerald-500/10 text-emerald-200`;
+    case 'watch':
+      return `${base} border-amber-500/50 bg-amber-500/10 text-amber-100`;
+    default:
+      return `${base} border-slate-600 bg-slate-700/20 text-slate-300`;
+  }
+}
+
+function approvalRiskClass(level: string) {
+  const base = 'rounded-lg border px-2 py-1 text-[11px] uppercase tracking-wide';
+  switch (level) {
+    case 'high':
+      return `${base} border-red-500/50 bg-red-500/10 text-red-200`;
+    case 'medium':
+      return `${base} border-amber-500/50 bg-amber-500/10 text-amber-100`;
+    default:
+      return `${base} border-emerald-500/40 bg-emerald-500/10 text-emerald-200`;
+  }
+}
+
+function figureNewsEmptyMessage(source: string) {
+  if (source === 'crypto_figure_news_no_matches') return '目前沒有找到 Vitalik / Trump 的加密貨幣相關新聞。';
+  if (source === 'crypto_figure_news_unavailable') return '重要人物新聞來源暫時不可用，稍後再試。';
+  return '重要人物新聞載入中。';
+}
+
 function errorMessage(err: unknown) {
   return err instanceof Error ? err.message : '發生未知錯誤';
+}
+
+function isCandidateBuildRunning(summary?: CandidateSummaryResponse | null) {
+  if (!summary) return false;
+  return summary.build.status === 'queued' || summary.build.status === 'running';
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 export default App;

@@ -10,22 +10,28 @@ import (
 )
 
 type Handler struct {
-	etherscan *service.EtherscanClient
-	graph     *service.GraphService
-	store     *service.AppStore
-	prices    *service.PriceService
-	news      *service.NewsService
-	alerts    *service.AlertService
+	etherscan  *service.EtherscanClient
+	graph      *service.GraphService
+	store      *service.AppStore
+	prices     *service.PriceService
+	news       *service.NewsService
+	figures    *service.FigureNewsService
+	alerts     *service.AlertService
+	candidates *service.CandidateService
+	approvals  *service.ApprovalService
 }
 
-func NewHandler(etherscan *service.EtherscanClient, graph *service.GraphService, store *service.AppStore, prices *service.PriceService, news *service.NewsService, alerts *service.AlertService) *Handler {
+func NewHandler(etherscan *service.EtherscanClient, graph *service.GraphService, store *service.AppStore, prices *service.PriceService, news *service.NewsService, figures *service.FigureNewsService, alerts *service.AlertService, candidates *service.CandidateService, approvals *service.ApprovalService) *Handler {
 	return &Handler{
-		etherscan: etherscan,
-		graph:     graph,
-		store:     store,
-		prices:    prices,
-		news:      news,
-		alerts:    alerts,
+		etherscan:  etherscan,
+		graph:      graph,
+		store:      store,
+		prices:     prices,
+		news:       news,
+		figures:    figures,
+		alerts:     alerts,
+		candidates: candidates,
+		approvals:  approvals,
 	}
 }
 
@@ -118,10 +124,35 @@ func (h *Handler) GetGasAnalytics(c *gin.Context) {
 
 // POST /api/token-approvals — 代幣授權檢查
 func (h *Handler) GetTokenApprovals(c *gin.Context) {
-	// TODO: 接收 address，查詢 ERC-20 approve 事件
-	// 列出哪些合約被授權可以花費多少代幣
-	// 使用 Etherscan event log API
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "Not implemented yet"})
+	var req model.TokenApprovalRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		return
+	}
+
+	req.Address = strings.ToLower(strings.TrimSpace(req.Address))
+	if !isValidEthAddress(req.Address) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Ethereum address"})
+		return
+	}
+
+	candidate, ok := h.candidates.GetCandidate(c.Request.Context(), req.Address)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Token approval analysis is only available for candidate pool addresses"})
+		return
+	}
+	if !candidate.SelectedForReview {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Token approval analysis is only available for review-tier candidate addresses"})
+		return
+	}
+
+	resp, err := h.approvals.GetTokenApprovals(c.Request.Context(), req.Address, req.Limit)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Failed to fetch token approvals: " + err.Error()})
+		return
+	}
+	resp.CandidateTier = candidate.PriorityTier
+	c.JSON(http.StatusOK, resp)
 }
 
 // POST /api/risk-score — 地址風險評分

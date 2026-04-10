@@ -137,6 +137,44 @@ func (h *Handler) ListWhales(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+func (h *Handler) ListCandidates(c *gin.Context) {
+	tier := strings.TrimSpace(strings.ToLower(c.DefaultQuery("tier", "all")))
+	minScore := parsePositiveInt(c.DefaultQuery("min_score", "0"), 0)
+	limit := parsePositiveInt(c.DefaultQuery("limit", "0"), 0)
+	c.JSON(http.StatusOK, h.candidates.ListCandidates(c.Request.Context(), tier, limit, minScore))
+}
+
+func (h *Handler) GetCandidateSummary(c *gin.Context) {
+	c.JSON(http.StatusOK, h.candidates.Summary(c.Request.Context()))
+}
+
+func (h *Handler) GetCandidate(c *gin.Context) {
+	address := normalizeAddress(c.Param("address"))
+	if !service.IsValidEthAddress(address) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Ethereum address"})
+		return
+	}
+	item, ok := h.candidates.GetCandidate(c.Request.Context(), address)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Candidate not found"})
+		return
+	}
+	c.JSON(http.StatusOK, item)
+}
+
+func (h *Handler) RebuildCandidates(c *gin.Context) {
+	resp, err := h.candidates.Rebuild(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
+		return
+	}
+	status := http.StatusOK
+	if resp.Started {
+		status = http.StatusAccepted
+	}
+	c.JSON(status, resp)
+}
+
 func (h *Handler) ImportEtherscanWhalesCSV(c *gin.Context) {
 	var filename string
 	var content []byte
@@ -167,6 +205,9 @@ func (h *Handler) ImportEtherscanWhalesCSV(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if h.candidates != nil {
+		h.candidates.Invalidate()
+	}
 	c.JSON(http.StatusOK, resp)
 }
 
@@ -183,6 +224,9 @@ func (h *Handler) ImportEtherscanWhalesURL(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+	if h.candidates != nil {
+		h.candidates.Invalidate()
 	}
 	c.JSON(http.StatusOK, resp)
 }
@@ -204,6 +248,11 @@ func (h *Handler) GetAddressDetail(c *gin.Context) {
 	if ok {
 		whalePtr = &whale
 	}
+	candidate, candidateOK := h.candidates.GetCandidate(c.Request.Context(), address)
+	var candidatePtr *model.CandidateAddress
+	if candidateOK {
+		candidatePtr = &candidate
+	}
 	labels := h.store.LabelsForAddress(c.Request.Context(), address)
 	isTracked := false
 	for _, item := range h.store.ListWatchlists(c.Request.Context(), userIDFromRequest(c)) {
@@ -217,6 +266,7 @@ func (h *Handler) GetAddressDetail(c *gin.Context) {
 		Address:       address,
 		Balance:       balance,
 		Whale:         whalePtr,
+		Candidate:     candidatePtr,
 		Labels:        labels,
 		RiskScore:     heuristicRiskScore(labels),
 		IsTracked:     isTracked,
@@ -285,6 +335,10 @@ func (h *Handler) GetETHPrices(c *gin.Context) {
 
 func (h *Handler) GetETHNews(c *gin.Context) {
 	c.JSON(http.StatusOK, h.news.GetETHNews(c.Request.Context()))
+}
+
+func (h *Handler) GetCryptoFigureNews(c *gin.Context) {
+	c.JSON(http.StatusOK, h.figures.GetCryptoFigureNews(c.Request.Context()))
 }
 
 func (h *Handler) ListWatchlists(c *gin.Context) {

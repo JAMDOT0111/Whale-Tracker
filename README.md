@@ -11,6 +11,7 @@ ETH whale and smart-money tracking prototype for public on-chain analysis and Gm
 - Gmail OAuth / SMTP notification delivery
 - Address balance, transaction, relationship graph, timeline, and flow visualization
 - ETH price chart, public news feed, labels, risk and heuristic alert evidence
+- Vitalik / Trump crypto figure news feed from Google News RSS
 - One-user-experience design: no paid membership tiers and no Stripe integration
 
 ## Tech Stack
@@ -46,9 +47,10 @@ npm run dev
 
 ```env
 ETHERSCAN_API_KEY=
-ETHERSCAN_TOP_ACCOUNTS_PAGES=20
+ETHERSCAN_TOP_ACCOUNTS_PAGES=400
 AUTO_IMPORT_WHALES_ON_START=true
 ENABLE_DEMO_DATA=false
+COINGECKO_API_KEY=
 GOOGLE_OAUTH_CLIENT_ID=
 GOOGLE_OAUTH_CLIENT_SECRET=
 GOOGLE_OAUTH_REDIRECT_URL=http://127.0.0.1:8080/api/auth/google/callback

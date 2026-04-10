@@ -4,8 +4,13 @@ import type {
   AddressDetailResponse,
   AppUser,
   BalanceResponse,
+  CandidateAddress,
+  CandidateListResponse,
+  CandidateRebuildResponse,
+  CandidateSummaryResponse,
   GraphRequest,
   GraphResponse,
+  FigureNewsResponse,
   NewsResponse,
   NotificationPreference,
   NotificationStatus,
@@ -13,6 +18,7 @@ import type {
   ScanRequest,
   ScanResponse,
   TestNotificationResponse,
+  TokenApprovalResponse,
   WatchlistItem,
   WatchlistUpsertResponse,
   WhaleImportResponse,
@@ -139,8 +145,8 @@ export async function getGasAnalytics(address: string): Promise<unknown> {
   return post('/gas-analytics', { address });
 }
 
-export async function getTokenApprovals(address: string): Promise<unknown> {
-  return post('/token-approvals', { address });
+export async function getTokenApprovals(address: string, limit = 12): Promise<TokenApprovalResponse> {
+  return post('/token-approvals', { address, limit });
 }
 
 export async function getRiskScore(address: string): Promise<unknown> {
@@ -174,6 +180,31 @@ export async function listWhales(params: {
   if (params.page) search.set('page', String(params.page));
   if (params.pageSize) search.set('page_size', String(params.pageSize));
   return get(`/whales?${search.toString()}`);
+}
+
+export async function listCandidates(params?: {
+  tier?: string;
+  limit?: number;
+  minScore?: number;
+}): Promise<CandidateListResponse> {
+  const search = new URLSearchParams();
+  if (params?.tier) search.set('tier', params.tier);
+  if (params?.limit) search.set('limit', String(params.limit));
+  if (params?.minScore) search.set('min_score', String(params.minScore));
+  const query = search.toString();
+  return get(`/candidates${query ? `?${query}` : ''}`);
+}
+
+export async function getCandidateSummary(): Promise<CandidateSummaryResponse> {
+  return get('/candidates/summary');
+}
+
+export async function getCandidate(address: string): Promise<CandidateAddress> {
+  return get(`/candidates/${address}`);
+}
+
+export async function rebuildCandidates(): Promise<CandidateRebuildResponse> {
+  return post('/admin/candidates/rebuild', {});
 }
 
 export async function importWhalesCSV(csv: string): Promise<WhaleImportResponse> {
@@ -215,6 +246,10 @@ export async function getETHPrices(interval: string): Promise<PriceSeriesRespons
 
 export async function getETHNews(): Promise<NewsResponse> {
   return get('/news/eth');
+}
+
+export async function getCryptoFigureNews(): Promise<FigureNewsResponse> {
+  return get('/news/crypto-figures');
 }
 
 export async function listWatchlists(): Promise<{ items: WatchlistItem[] }> {

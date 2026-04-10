@@ -55,6 +55,11 @@ type BalanceRequest struct {
 	Address string `json:"address" binding:"required"`
 }
 
+type TokenApprovalRequest struct {
+	Address string `json:"address" binding:"required"`
+	Limit   int    `json:"limit"`
+}
+
 type TokenBalance struct {
 	Symbol  string `json:"symbol"`
 	Name    string `json:"name"`
@@ -122,4 +127,17 @@ type EtherscanNFTTx struct {
 	TokenID     string `json:"tokenID"`
 	TokenName   string `json:"tokenName"`
 	TokenSymbol string `json:"tokenSymbol"`
+}
+
+type EtherscanLog struct {
+	Address          string   `json:"address"`
+	Topics           []string `json:"topics"`
+	Data             string   `json:"data"`
+	BlockNumber      string   `json:"blockNumber"`
+	TimeStamp        string   `json:"timeStamp"`
+	GasPrice         string   `json:"gasPrice"`
+	GasUsed          string   `json:"gasUsed"`
+	LogIndex         string   `json:"logIndex"`
+	TransactionHash  string   `json:"transactionHash"`
+	TransactionIndex string   `json:"transactionIndex"`
 }
