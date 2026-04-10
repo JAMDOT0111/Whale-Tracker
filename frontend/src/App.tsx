@@ -72,7 +72,6 @@ function App() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [notificationStatus, setNotificationStatus] = useState<NotificationStatus | null>(null);
   const [notificationPref, setNotificationPref] = useState<NotificationPreference | null>(null);
-  const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [graphLoading, setGraphLoading] = useState(false);
@@ -81,6 +80,7 @@ function App() {
   const [graphMessage, setGraphMessage] = useState('');
   const [importMessage, setImportMessage] = useState('');
   const [notificationMessage, setNotificationMessage] = useState('');
+  const [whaleListVersion, setWhaleListVersion] = useState(0);
   const thresholdRef = useRef(threshold);
   const sortRef = useRef(sort);
   const latestWhalesRequestId = useRef(0);
@@ -276,15 +276,6 @@ function App() {
       }
       await loadWhales(page);
       if (selectedAddress) await selectAddress(selectedAddress);
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  };
-
-  const handleCopy = async (address: string) => {
-    try {
-      await navigator.clipboard.writeText(address);
-      setNotificationMessage(`已複製地址：${shortAddress(address)}`);
     } catch (err) {
       setError(errorMessage(err));
     }
