@@ -8,6 +8,8 @@ interface GraphViewProps {
   onNodeRightClick?: (nodeId: string, x: number, y: number) => void;
   markedAddresses?: Set<string>;
   customNames?: Record<string, string>;
+  embedded?: boolean;
+  containerClassName?: string;
 }
 
 export default function GraphView({
@@ -16,6 +18,8 @@ export default function GraphView({
   onNodeRightClick,
   markedAddresses,
   customNames,
+  embedded = false,
+  containerClassName = 'h-[600px]',
 }: GraphViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core | null>(null);
@@ -213,49 +217,49 @@ export default function GraphView({
 
   if (!data || data.nodes.length === 0) {
     return (
-      <div className="h-[600px] flex items-center justify-center text-gray-500 border border-gray-700 rounded-lg bg-gray-900/50">
+      <div className={`${containerClassName} flex items-center justify-center text-gray-500 border border-gray-700 rounded-lg bg-gray-900/50`}>
         掃描地址後，這裡會顯示地址關係圖。
       </div>
     );
   }
 
+  if (embedded) {
+    return <div ref={containerRef} className={`${containerClassName} border border-gray-700 rounded-lg bg-gray-900/80`} />;
+  }
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div>
         <h2 className="text-lg font-semibold text-white">
-          地址關係圖
+          地址關聯圖譜
           <span className="text-gray-400 font-normal text-sm ml-2">
             ({data.nodes.length} 個節點, {data.edges.length} 條邊)
           </span>
         </h2>
-        <div className="flex flex-wrap gap-3 text-xs text-gray-400">
-          <span className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-full bg-amber-500 inline-block" />
-            中心地址
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-full bg-indigo-500 inline-block" />
-            一般地址
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded bg-emerald-500 inline-block" />
-            合約
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rotate-45 bg-rose-500 inline-block" />
-            交易所
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-sm bg-cyan-500 inline-block" />
-            跨鏈橋
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-full border-2 border-yellow-400 inline-block" />
-            已標記
-          </span>
-        </div>
       </div>
-      <div ref={containerRef} className="h-[600px] border border-gray-700 rounded-lg bg-gray-900/80" />
+      <div ref={containerRef} className={`${containerClassName} border border-gray-700 rounded-lg bg-gray-900/80`} />
+      <div className="flex flex-wrap gap-3 text-xs text-gray-400">
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full bg-amber-500 inline-block" />
+          中心地址
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full bg-indigo-500 inline-block" />
+          一般地址
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded bg-emerald-500 inline-block" />
+          合約
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rotate-45 bg-rose-500 inline-block" />
+          交易所
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm bg-cyan-500 inline-block" />
+          跨鏈橋
+        </span>
+      </div>
       <p className="text-gray-500 text-xs text-center">左鍵點擊節點導航 / 右鍵選單操作 / 拖拉移動 / 滾輪縮放</p>
     </div>
   );
