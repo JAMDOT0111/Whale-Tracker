@@ -85,6 +85,7 @@ function App() {
   const [graphMessage, setGraphMessage] = useState('');
   const [importMessage, setImportMessage] = useState('');
   const [notificationMessage, setNotificationMessage] = useState('');
+  const [whaleListVersion, setWhaleListVersion] = useState(0);
   const thresholdRef = useRef(threshold);
   const sortRef = useRef(sort);
   const latestWhalesRequestId = useRef(0);
