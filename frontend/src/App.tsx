@@ -20,6 +20,7 @@ import {
   startGoogleOAuthLogin,
   syncWhalesFromConfiguredURL,
   upsertWatchlist,
+  deleteWatchlist,
 } from './api/client';
 import type {
   AISummaryResponse,
@@ -232,6 +233,21 @@ function App() {
     if (!activeUser) {
       return;
     }
+
+    const existing = watchlists.find((w) => w.address.toLowerCase() === address.toLowerCase());
+    if (existing) {
+      try {
+        await deleteWatchlist(existing.id);
+        setWatchlists((prev) => prev.filter((w) => w.id !== existing.id));
+        setNotificationMessage(`已取消追蹤 ${shortAddress(address)}`);
+        await loadWhales(page);
+        if (selectedAddress) await selectAddress(selectedAddress);
+      } catch (err) {
+        setError(errorMessage(err));
+      }
+      return;
+    }
+
     const normalizedThreshold = normalizeETHAmount(watchThreshold);
     if (!normalizedThreshold) {
       setError('請輸入有效的通知門檻，例如 500 或 1000。');
@@ -260,6 +276,15 @@ function App() {
       }
       await loadWhales(page);
       if (selectedAddress) await selectAddress(selectedAddress);
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  };
+
+  const handleCopy = async (address: string) => {
+    try {
+      await navigator.clipboard.writeText(address);
+      setNotificationMessage(`已複製地址：${shortAddress(address)}`);
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -483,8 +508,7 @@ function App() {
               >
                 <option value="balance_desc">餘額排序</option>
                 <option value="balance_asc">餘額由低到高</option>
-                <option value="rank_asc">排名由前到後</option>
-                <option value="rank_desc">排名由後到前</option>
+                <option value="tracked">追蹤中名單</option>
               </select>
             </div>
 
@@ -492,7 +516,6 @@ function App() {
               <table className="w-full min-w-[760px] text-left text-sm">
                 <thead className="border-b border-slate-700 text-xs text-slate-500">
                   <tr>
-                    <th className="px-4 py-3">#</th>
                     <th className="px-4 py-3">地址</th>
                     <th className="px-4 py-3">ETH 餘額</th>
                     <th className="px-4 py-3">持有佔比</th>
@@ -508,7 +531,6 @@ function App() {
                         selectedAddress === whale.address ? 'bg-emerald-500/5' : ''
                       }`}
                     >
-                      <td className="px-4 py-3 text-slate-400">{whale.rank}</td>
                       <td className="px-4 py-3">
                         <button onClick={() => prefillAddress(whale.address)} className="text-left">
                           <span className="block font-mono text-slate-100">{shortAddress(whale.address)}</span>

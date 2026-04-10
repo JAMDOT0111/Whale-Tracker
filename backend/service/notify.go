@@ -162,7 +162,11 @@ func renderAlertEmail(alert model.AlertEvent) string {
 	if strings.HasPrefix(strings.ToLower(alert.Address), "0x") {
 		b.WriteString("地址連結: https://etherscan.io/address/" + alert.Address + "\n")
 	}
-	b.WriteString("監控門檻: > " + alert.ThresholdETH + " ETH\n")
+	if alert.Type == "test_notification" {
+		b.WriteString("監控門檻: N/A (發信系統連線測試)\n")
+	} else {
+		b.WriteString("監控門檻: > " + alert.ThresholdETH + " ETH\n")
+	}
 	b.WriteString("信心水準: " + fmt.Sprintf("%.0f%%", alert.Confidence*100) + "\n")
 	b.WriteString("啟發性分析: 是。此為程式自動判斷，不構成投資建議，亦不代表確定的詐欺行為。\n\n")
 	if len(alert.Evidence) > 0 {
